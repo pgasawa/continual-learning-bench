@@ -418,6 +418,10 @@ class ContinualLearningTask(ABC):
         self.select_run_instances(None)
         return self.build_current_query()
 
+    def cleanup(self) -> None:
+        """Release task-owned external resources after a run."""
+        pass
+
     @abstractmethod
     def build_canonical_run_state(self) -> None:
         """Build the full canonical run sequence and clear per-run state.

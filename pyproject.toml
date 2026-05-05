@@ -39,6 +39,10 @@ sales_prediction = [
     "pyyaml>=6.0",
 ]
 
+daytona = [
+    "daytona>=0.171.0",
+]
+
 cohort_studies = [
     "lifelines>=0.29",
     "pandas>=2.2",
@@ -73,6 +77,7 @@ all = [
     "scikit-learn>=1.6",
     "pyyaml>=6.0",
     "lifelines>=0.29",
+    "daytona>=0.171.0",
 ]
 
 [tool.uv]
