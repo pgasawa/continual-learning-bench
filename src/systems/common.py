@@ -6,9 +6,14 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 from collections.abc import Mapping, Sequence
 from html import escape as escape_xml_text
 from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 CONTAINER_WORKSPACE = "/workspace"
 DEFAULT_DOCKER_IMAGE = "node:22-slim"
@@ -395,8 +400,16 @@ def docker_exec(
     *,
     timeout: int | None,
     default_timeout: int,
+    stdout_idle_timeout: int = 180,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a shell command inside a Docker container."""
+    """Run a shell command inside a Docker container.
+
+    Two timeouts run together: the wall-clock `timeout` raises TimeoutExpired,
+    while `stdout_idle_timeout` kills the subprocess after that many seconds
+    of silence and returns rc=124. The idle path works around claude code
+    sometimes sitting in epoll_pwait2 on a dead connection — callers retry on
+    non-zero exit, which gives a fresh `docker exec` and TCP connection.
+    """
     if container_id is None:
         raise RuntimeError("Container not running")
 
@@ -408,12 +421,91 @@ def docker_exec(
         "-c",
         command,
     ]
-    return subprocess.run(
+    overall_timeout = float(timeout or default_timeout)
+    idle_timeout = float(stdout_idle_timeout)
+
+    proc = subprocess.Popen(
         cmd,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=timeout or default_timeout,
-        check=False,
+        bufsize=1,
+    )
+
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+    last_activity = [time.monotonic()]
+    activity_lock = threading.Lock()
+
+    def _drain(pipe: Any, sink: list[str]) -> None:
+        try:
+            for line in iter(pipe.readline, ""):
+                if not line:
+                    break
+                sink.append(line)
+                with activity_lock:
+                    last_activity[0] = time.monotonic()
+        finally:
+            try:
+                pipe.close()
+            except Exception:
+                pass
+
+    stdout_thread = threading.Thread(
+        target=_drain, args=(proc.stdout, stdout_chunks), daemon=True
+    )
+    stderr_thread = threading.Thread(
+        target=_drain, args=(proc.stderr, stderr_chunks), daemon=True
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+
+    start = time.monotonic()
+    poll_interval = 5.0
+    while proc.poll() is None:
+        time.sleep(poll_interval)
+        now = time.monotonic()
+        elapsed = now - start
+        with activity_lock:
+            idle_for = now - last_activity[0]
+        if elapsed > overall_timeout:
+            proc.kill()
+            stdout_thread.join(timeout=5)
+            stderr_thread.join(timeout=5)
+            raise subprocess.TimeoutExpired(
+                cmd,
+                overall_timeout,
+                output="".join(stdout_chunks),
+                stderr="".join(stderr_chunks),
+            )
+        if idle_for > idle_timeout:
+            logger.warning(
+                "docker_exec: stdout idle for %.0fs (limit %.0fs); killing subprocess "
+                "to trigger retry on fresh connection",
+                idle_for,
+                idle_timeout,
+            )
+            proc.kill()
+            stdout_thread.join(timeout=5)
+            stderr_thread.join(timeout=5)
+            return subprocess.CompletedProcess(
+                cmd,
+                returncode=124,
+                stdout="".join(stdout_chunks),
+                stderr=(
+                    "".join(stderr_chunks)
+                    + "\n[docker_exec] killed: stdout idle "
+                    + f"{idle_for:.0f}s > {idle_timeout:.0f}s"
+                ),
+            )
+
+    stdout_thread.join(timeout=5)
+    stderr_thread.join(timeout=5)
+    return subprocess.CompletedProcess(
+        cmd,
+        returncode=proc.returncode,
+        stdout="".join(stdout_chunks),
+        stderr="".join(stderr_chunks),
     )
 
 

@@ -706,6 +706,7 @@ _RUN_BOOLEAN_FLAGS = {
     "--no-live-server",
     "--verbose-runs",
     "--no-verbose-runs",
+    "--resume",
     "-v",
     "-vv",
 }
@@ -1458,9 +1459,27 @@ def _cmd_run_all(args: list[str]) -> None:
         except ValueError:
             return str(p)
 
-    # Predict per-task live manifest paths (we control the run_group_id, so we
-    # can compute these before each subprocess starts).
-    task_run_ids: dict[str, str] = {name: run_id for name in tasks_to_run}
+    # Predict per-task live manifest paths upfront. When --missing-only is set,
+    # reuse a partial run's batch_id so --resume can pick up its trace dir.
+    task_run_ids: dict[str, str] = {}
+    task_resume: dict[str, bool] = {}
+    for name in tasks_to_run:
+        prior_entry = existing_entries.get(name) if parsed.missing_only else None
+        prior_batch_id = (prior_entry or {}).get("batch_id") if prior_entry else None
+        prior_live_dir = (
+            Path("results") / name / "live" / prior_batch_id if prior_batch_id else None
+        )
+        if (
+            parsed.missing_only
+            and prior_batch_id
+            and prior_live_dir
+            and prior_live_dir.is_dir()
+        ):
+            task_run_ids[name] = prior_batch_id
+            task_resume[name] = True
+        else:
+            task_run_ids[name] = run_id
+            task_resume[name] = False
     task_live_manifests: dict[str, Path] = {
         name: build_live_manifest_path(name, task_run_ids[name])
         for name in tasks_to_run
@@ -1666,6 +1685,7 @@ def _cmd_run_all(args: list[str]) -> None:
                 "--run-group-id",
                 task_run_ids[task_name],
             ]
+            + (["--resume"] if task_resume.get(task_name) else [])
             + run_flags
         )
         with open(log_path, "w") as log_file:
@@ -2029,6 +2049,15 @@ Examples:
         default=None,
         help="Override the auto-generated timestamp run group id (used by run-all to predict per-task live manifest paths).",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Resume an interrupted run by reusing completed rollout traces from "
+            "the live dir. Requires --run-group-id pointing at the prior group. "
+            "Only completed rollout JSONs are reused; partial baselines are not."
+        ),
+    )
 
     # Parse known args first to check for list commands
     args, unknown = parser.parse_known_args()
@@ -2300,6 +2329,7 @@ Examples:
                 baseline_live_path=baseline_live_path,
                 live_trace_paths=run_live_paths or None,
                 output_path=Path(args.output) if args.output else None,
+                resume=bool(getattr(args, "resume", False)),
             )
             logger.log(RUN_LOG_LEVEL, "finished")
 

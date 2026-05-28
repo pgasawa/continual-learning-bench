@@ -9,6 +9,7 @@ overlap in wall-clock time.
 
 from __future__ import annotations
 
+import json
 import logging
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -20,6 +21,8 @@ from ..errors import ProviderRefusalError
 from ..interface import (
     ContinualLearningSystem,
     ContinualLearningTask,
+    EvalMetrics,
+    InstanceOutcome,
     TaskResult,
     TaskResults,
 )
@@ -44,6 +47,146 @@ from .baseline import (
 from .single import run_single
 
 logger = logging.getLogger(__name__)
+
+
+def _live_run_path(task_name: str, run_group_id: str, run_index: int) -> Path:
+    return Path(f"results/{task_name}/live/{run_group_id}/run_{run_index + 1}.json")
+
+
+def _live_baseline_path(task_name: str, run_group_id: str) -> Path:
+    return Path(f"results/{task_name}/live/{run_group_id}/baseline.json")
+
+
+def _try_load_completed_baseline(
+    task_name: str, run_group_id: str
+) -> Optional[tuple[Optional[int], TaskResult, dict[str, Any], dict[str, Any]]]:
+    # Return the saved baseline trace tuple, or None if it's missing or partial.
+    path = _live_baseline_path(task_name, run_group_id)
+    if not path.is_file():
+        return None
+    try:
+        trace_data = json.loads(path.read_text())
+    except Exception as exc:
+        logger.warning("Could not parse %s for resume: %s", path, exc)
+        return None
+    if trace_data.get("status") != "completed":
+        return None
+    # status="completed" can be set even when instances are blocked, so verify
+    # the count too before treating the baseline as reusable.
+    execution = trace_data.get("execution") or {}
+    completed = execution.get("instances_completed")
+    total = execution.get("instances_total")
+    if (
+        not isinstance(completed, int)
+        or not isinstance(total, int)
+        or completed < total
+    ):
+        logger.info(
+            "resume.baseline_incomplete",
+            extra={
+                "path": str(path),
+                "completed": completed,
+                "total": total,
+            },
+        )
+        return None
+    result_payload = trace_data.get("result")
+    if not isinstance(result_payload, dict):
+        return None
+
+    em = result_payload.get("eval_metrics") or {}
+    eval_metrics = EvalMetrics(
+        loss_curve=em.get("loss_curve", []),
+        optimal_performance=em.get("optimal_performance", 0.0),
+        actual_performance=em.get("actual_performance", 0.0),
+        extra=em.get("extra"),
+    )
+    instance_outcome_fields = set(InstanceOutcome.__dataclass_fields__)
+    instance_outcomes = [
+        InstanceOutcome(**{k: v for k, v in io.items() if k in instance_outcome_fields})
+        for io in (result_payload.get("instance_outcomes") or [])
+        if isinstance(io, dict)
+    ]
+    task_result = TaskResult(
+        metrics=result_payload.get("metrics") or {},
+        summary=result_payload.get("summary", ""),
+        eval_metrics=eval_metrics,
+        instance_outcomes=instance_outcomes,
+    )
+    execution_summary = {
+        **execution,
+        "status": trace_data.get("status", "completed"),
+        "phase": trace_data.get("phase", "baseline"),
+        "task_brief": trace_data.get("task_brief"),
+        "instance_outcomes": trace_data.get("instance_outcomes", []),
+    }
+    logger.info(
+        "resume.skip_completed_baseline",
+        extra={
+            "path": str(path),
+            "score": task_result.score,
+            "instances": completed,
+        },
+    )
+    return (None, task_result, trace_data, execution_summary)
+
+
+def _try_load_completed_run(
+    task_name: str, run_group_id: str, run_index: int
+) -> Optional[RunSuccess]:
+    # Return a RunSuccess from the saved live trace, or None if not reusable.
+    # Only completed runs are eligible; the model state of partial runs is gone.
+    path = _live_run_path(task_name, run_group_id, run_index)
+    if not path.is_file():
+        return None
+    try:
+        trace_data = json.loads(path.read_text())
+    except Exception as exc:
+        logger.warning("Could not parse %s for resume: %s", path, exc)
+        return None
+    if trace_data.get("status") != "completed":
+        return None
+    result_payload = trace_data.get("result")
+    if not isinstance(result_payload, dict):
+        return None
+
+    em = result_payload.get("eval_metrics") or {}
+    eval_metrics = EvalMetrics(
+        loss_curve=em.get("loss_curve", []),
+        optimal_performance=em.get("optimal_performance", 0.0),
+        actual_performance=em.get("actual_performance", 0.0),
+        extra=em.get("extra"),
+    )
+    instance_outcome_fields = set(InstanceOutcome.__dataclass_fields__)
+    instance_outcomes = [
+        InstanceOutcome(**{k: v for k, v in io.items() if k in instance_outcome_fields})
+        for io in (result_payload.get("instance_outcomes") or [])
+        if isinstance(io, dict)
+    ]
+    task_result = TaskResult(
+        metrics=result_payload.get("metrics") or {},
+        summary=result_payload.get("summary", ""),
+        eval_metrics=eval_metrics,
+        instance_outcomes=instance_outcomes,
+    )
+
+    # Mirrors the execution_summary shape that run_single builds in memory.
+    execution_summary = {
+        **(trace_data.get("execution") or {}),
+        "status": trace_data.get("status", "completed"),
+        "phase": trace_data.get("phase", "run"),
+        "task_brief": trace_data.get("task_brief"),
+        "instance_outcomes": trace_data.get("instance_outcomes", []),
+    }
+    logger.info(
+        "resume.skip_completed_run",
+        extra={
+            "run_index": run_index,
+            "path": str(path),
+            "score": task_result.score,
+        },
+    )
+    return (run_index, task_result, trace_data, execution_summary)
 
 
 def derive_run_task_params(
@@ -224,6 +367,7 @@ def run_benchmark(
     baseline_live_path: Optional[Path] = None,
     live_trace_paths: Optional[dict[int, Path]] = None,
     output_path: Optional[Path] = None,
+    resume: bool = False,
 ) -> tuple[
     Optional[tuple[Optional[int], TaskResult, dict[str, Any], dict[str, Any]]],
     TaskResults,
@@ -320,6 +464,31 @@ def run_benchmark(
     blocked_baseline_instances: list[dict[str, Any]] = []
     run_results: list[Optional[RunSuccess]] = [None] * runs
 
+    # When resume=True, reuse completed rollout traces and a completed baseline
+    # trace from the live dir instead of redoing them.
+    resumed_indices: list[int] = []
+    preloaded_baseline_info: Optional[
+        tuple[Optional[int], TaskResult, dict[str, Any], dict[str, Any]]
+    ] = None
+    if resume:
+        for i in range(runs):
+            preloaded = _try_load_completed_run(task_name, run_group_id, i)
+            if preloaded is not None:
+                run_results[i] = preloaded
+                resumed_indices.append(i)
+        if resumed_indices:
+            print(
+                f"  Resuming: {len(resumed_indices)} of {runs} rollout(s) already "
+                f"completed (indices {resumed_indices}); skipping their submission."
+            )
+        preloaded_baseline_info = _try_load_completed_baseline(task_name, run_group_id)
+        if preloaded_baseline_info is not None:
+            print(
+                f"  Resuming: baseline already complete "
+                f"(score {preloaded_baseline_info[1].score:.4f}); "
+                f"skipping baseline submission."
+            )
+
     baseline_start_time = datetime.now().isoformat()
 
     def _write_partial_baseline_snapshot(
@@ -343,9 +512,8 @@ def run_benchmark(
 
     ctx = mp.get_context("spawn")
     with ProcessPoolExecutor(max_workers=effective_workers, mp_context=ctx) as pool:
-        # Submit rollout runs first so they immediately claim workers — they
-        # are the sequential bottleneck, so minimising their queue time matters
-        # most.
+        # Submit rollouts first — they're the sequential bottleneck, so they
+        # should claim workers before the parallel baseline instances do.
         run_futures = {
             pool.submit(
                 run_single,
@@ -363,24 +531,29 @@ def run_benchmark(
                 ),
             ): i
             for i in range(runs)
+            if i not in resumed_indices
         }
-        # Submit baseline instances after; they are fully parallel and can fill
-        # whatever worker slots remain once the rollouts have started.
-        baseline_futures = {
-            pool.submit(
-                _run_baseline_instance,
-                task_class=task_class,
-                task_params=merged_baseline_params,
-                system_class=system_class,
-                system_params=system_params,
-                instance_index=i,
-                run_group_id=run_group_id,
-                system_name=system_name,
-                task_name=task_name,
-                verbose=verbose_runs,
-            ): i
-            for i in range(num_baseline_instances)
-        }
+        # Baseline instances fill the remaining worker slots. Skipped entirely
+        # when --resume found a completed baseline trace.
+        baseline_futures = (
+            {
+                pool.submit(
+                    _run_baseline_instance,
+                    task_class=task_class,
+                    task_params=merged_baseline_params,
+                    system_class=system_class,
+                    system_params=system_params,
+                    instance_index=i,
+                    run_group_id=run_group_id,
+                    system_name=system_name,
+                    task_name=task_name,
+                    verbose=verbose_runs,
+                ): i
+                for i in range(num_baseline_instances)
+            }
+            if preloaded_baseline_info is None
+            else {}
+        )
 
         all_futures: dict[Any, tuple[str, int]] = {
             **{f: ("baseline", i) for f, i in baseline_futures.items()},
@@ -430,31 +603,34 @@ def run_benchmark(
 
     baseline_end_time = datetime.now().isoformat()
 
-    # Merge baseline instances.
-    completed_baseline = [r for r in baseline_instance_results if r is not None]
-    merged_result, baseline_trace_data, baseline_execution = (
-        _merge_baseline_instance_results(
-            completed_baseline,
-            run_group_id=run_group_id,
-            system_name=system_name,
-            task_name=task_name,
-            task_params=merged_baseline_params,
-            system_params=system_params,
-            start_time=baseline_start_time,
-            end_time=baseline_end_time,
-            blocked_instances=blocked_baseline_instances,
-            expected_num_instances=num_baseline_instances,
+    if preloaded_baseline_info is not None:
+        # Resume: prior baseline trace is reusable as-is.
+        baseline_info = preloaded_baseline_info
+    else:
+        completed_baseline = [r for r in baseline_instance_results if r is not None]
+        merged_result, baseline_trace_data, baseline_execution = (
+            _merge_baseline_instance_results(
+                completed_baseline,
+                run_group_id=run_group_id,
+                system_name=system_name,
+                task_name=task_name,
+                task_params=merged_baseline_params,
+                system_params=system_params,
+                start_time=baseline_start_time,
+                end_time=baseline_end_time,
+                blocked_instances=blocked_baseline_instances,
+                expected_num_instances=num_baseline_instances,
+            )
         )
-    )
-    baseline_info = (None, merged_result, baseline_trace_data, baseline_execution)
+        baseline_info = (None, merged_result, baseline_trace_data, baseline_execution)
 
-    # Write the completed baseline trace so the live viewer can display it.
-    if baseline_live_path is not None:
-        _atomic_write_json(baseline_live_path, baseline_trace_data)
-        logger.debug(
-            "baseline.live_trace.written",
-            extra={"path": str(baseline_live_path)},
-        )
+        # Write the completed baseline trace so the live viewer can display it.
+        if baseline_live_path is not None:
+            _atomic_write_json(baseline_live_path, baseline_trace_data)
+            logger.debug(
+                "baseline.live_trace.written",
+                extra={"path": str(baseline_live_path)},
+            )
 
     # Aggregate rollout runs.
     task_results_list: list[TaskResult] = []
