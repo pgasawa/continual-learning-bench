@@ -206,6 +206,22 @@ def canonical_outcome_reward(
     database_budget: float,
 ) -> float | None:
     reward = outcome.get("reward")
+
+    if task == "cohort_studies":
+        # Cohort studies moved from a clamped relative skill score (reward = max(0, 1 -
+        # mean_kl_divergence / mean_reference_kl)) to the signed information gain (reward =
+        # mean_reference_kl - mean_kl_divergence, negatives legitimate). Recompute from the stored
+        # cohort-mean KLs so old (clamped) and new (signed) artifacts compare on the same signed
+        # scale -- otherwise runs scored under the two metrics are summed and normalized together
+        # (and the fixed gpt-5.4 reference baseline is itself clamped), which distorts the ranking.
+        # Mirrors the database_exploration recompute below.
+        metadata = outcome.get("metadata") or {}
+        ref_kl = metadata.get("mean_reference_kl")
+        kl = metadata.get("mean_kl_divergence")
+        if isinstance(ref_kl, (int, float)) and isinstance(kl, (int, float)):
+            return float(ref_kl) - float(kl)
+        return float(reward) if isinstance(reward, (int, float)) else None
+
     if task != "database_exploration":
         return float(reward) if isinstance(reward, (int, float)) else None
 
