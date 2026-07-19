@@ -1,6 +1,93 @@
+import sys
 import subprocess
 
+import pytest
+
 from src.tasks.codebase_adaptation import generic_runtime as gr
+from src.tasks.codebase_adaptation.curation.scripts import (
+    build_git_pr_image as image_builder,
+)
+
+
+def test_build_git_pr_image_dockerfile_omits_extra_pip_install_by_default():
+    args = image_builder.build_parser().parse_args([".", "--image-name", "x"])
+
+    dockerfile = image_builder.build_dockerfile(args)
+
+    assert "\nRUN pip install " not in dockerfile
+
+
+def test_build_git_pr_image_dockerfile_adds_extra_pip_install_after_base_install():
+    args = image_builder.build_parser().parse_args(
+        [".", "--image-name", "x", "--extra-pip-packages", "MarkupPy"]
+    )
+
+    dockerfile = image_builder.build_dockerfile(args)
+
+    assert "RUN pip install MarkupPy\n" in dockerfile
+    assert dockerfile.index("RUN python -m pip install") < dockerfile.index(
+        "RUN pip install MarkupPy"
+    )
+
+
+def test_build_git_pr_image_dockerfile_adds_multiple_extra_pip_packages():
+    args = image_builder.build_parser().parse_args(
+        [".", "--image-name", "x", "--extra-pip-packages", "MarkupPy lxml"]
+    )
+
+    dockerfile = image_builder.build_dockerfile(args)
+
+    assert "RUN pip install MarkupPy lxml\n" in dockerfile
+
+
+def test_build_git_pr_image_dockerfile_quotes_version_specifiers():
+    args = image_builder.build_parser().parse_args(
+        [".", "--image-name", "x", "--extra-pip-packages", "requests>=2 urllib3<2"]
+    )
+
+    dockerfile = image_builder.build_dockerfile(args)
+
+    # Version specifiers contain shell redirection metacharacters; they must be
+    # quoted so Docker's shell-form RUN does not interpret < / > as redirection.
+    assert "RUN pip install 'requests>=2' 'urllib3<2'\n" in dockerfile
+    assert "requests>=2 urllib3<2" not in dockerfile
+
+
+def test_build_git_pr_image_dockerfile_treats_empty_extra_pip_packages_as_default():
+    args = image_builder.build_parser().parse_args(
+        [".", "--image-name", "x", "--extra-pip-packages", ""]
+    )
+
+    dockerfile = image_builder.build_dockerfile(args)
+
+    assert "\nRUN pip install " not in dockerfile
+
+
+def test_build_git_pr_image_main_validates_repo_dir_before_dockerfile_generation(
+    monkeypatch,
+    tmp_path,
+):
+    missing_repo_dir = tmp_path / "missing"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_git_pr_image.py",
+            str(missing_repo_dir),
+            "--image-name",
+            "x",
+            "--extra-pip-packages",
+            "MarkupPy",
+        ],
+    )
+
+    def fail_build_dockerfile(_args):
+        raise AssertionError("Dockerfile should not be generated for missing repo_dir")
+
+    monkeypatch.setattr(image_builder, "build_dockerfile", fail_build_dockerfile)
+
+    with pytest.raises(ValueError, match="does not exist or is not a directory"):
+        image_builder.main()
 
 
 def test_generic_runtime_detects_runtime_mode():
