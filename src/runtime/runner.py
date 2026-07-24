@@ -4,6 +4,7 @@ Task runner orchestration for continual learning benchmark loops.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import datetime
 import logging
 import time
@@ -152,6 +153,7 @@ def _finalize_task_result(
     runtime_instance_outcomes: list[InstanceOutcome],
 ) -> TaskResult:
     """Evaluate the task and merge any streamed instance outcomes."""
+    task.cleanup()
     task_result = task.evaluate()
     final_outcomes = list(task_result.instance_outcomes) or task.get_instance_outcomes()
     _upsert_instance_outcomes(runtime_instance_outcomes, final_outcomes)
@@ -229,27 +231,6 @@ def run_task(
     Returns:
         TaskResult with evaluation metrics
     """
-    query = task.reset() if initial_query is None else initial_query
-    query_context = (
-        f"{type(task).__name__}.reset()"
-        if initial_query is None
-        else f"{type(task).__name__} initial query"
-    )
-    require_query_instance_identity(query, context=query_context)
-    if reset_system:
-        system.reset()
-    system.consume_usage_events()
-    logger.debug(
-        "started",
-        extra={
-            "task_class": type(task).__name__,
-            "system_class": type(system).__name__,
-            "phase": phase,
-            "reset_system": reset_system,
-            "reset_between_instances": reset_between_instances,
-        },
-    )
-
     pbar = None
     runtime_instance_outcomes: list[InstanceOutcome] = []
 
@@ -274,6 +255,27 @@ def run_task(
         )
 
     try:
+        query = task.reset() if initial_query is None else initial_query
+        query_context = (
+            f"{type(task).__name__}.reset()"
+            if initial_query is None
+            else f"{type(task).__name__} initial query"
+        )
+        require_query_instance_identity(query, context=query_context)
+        if reset_system:
+            system.reset()
+        system.consume_usage_events()
+        logger.debug(
+            "started",
+            extra={
+                "task_class": type(task).__name__,
+                "system_class": type(system).__name__,
+                "phase": phase,
+                "reset_system": reset_system,
+                "reset_between_instances": reset_between_instances,
+            },
+        )
+
         latest_outcome: Optional[dict[str, Any]] = None
         initial_outcomes = _upsert_instance_outcomes(
             runtime_instance_outcomes, task.get_instance_outcomes()
@@ -527,5 +529,7 @@ def run_task(
             task, system, trace_recorder, runtime_instance_outcomes
         )
     finally:
+        with suppress(Exception):
+            task.cleanup()
         if pbar is not None:
             pbar.close()

@@ -18,7 +18,6 @@ from typing import Any, Optional
 
 import yaml
 from jinja2 import StrictUndefined, Template
-from minisweagent.exceptions import Submitted
 from pydantic import BaseModel, Field
 
 from ...interface import (
@@ -40,10 +39,18 @@ from ..schedules import (
     permute_stage_aligned_sequences,
 )
 from ..variants import TaskVariantSpec, get_task_variant, validate_variant_defaults
+from ..environments import (
+    EnvironmentBackend,
+    EnvironmentConfig,
+    ShellEnvironment,
+    create_shell_environment,
+    environment_metadata,
+    validate_environment_backend,
+)
 
 from .evaluator import evaluate_submission
 from .generic_runtime import (
-    initialize_generic_pr_container,
+    initialize_generic_pr_environment,
     instance_cwd,
     is_generic_pr_instance,
 )
@@ -160,7 +167,14 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         same_repo: bool = True,
         variant: Optional[str] = None,
         schedule: Optional[str] = None,
+        environment_backend: EnvironmentBackend = "local_docker",
+        daytona_snapshot: str | None = None,
+        daytona_snapshot_by_image: dict[str, str] | None = None,
+        daytona_target: str | None = None,
+        daytona_auto_delete_interval: int = 60,
+        daytona_preserve_on_failure: bool = False,
     ):
+        validate_environment_backend(environment_backend)
         self.variant = variant
         self.schedule = schedule
         self.variant_spec: TaskVariantSpec | None = None
@@ -296,6 +310,12 @@ class CodebaseAdaptationTask(ContinualLearningTask):
 
         self.repo_filter = repo_filter
         self.seed = seed
+        self.environment_backend = environment_backend
+        self.daytona_snapshot = daytona_snapshot
+        self.daytona_snapshot_by_image = daytona_snapshot_by_image
+        self.daytona_target = daytona_target
+        self.daytona_auto_delete_interval = daytona_auto_delete_interval
+        self.daytona_preserve_on_failure = daytona_preserve_on_failure
 
         self.instances: list[TaskInstance] = []
         self.current_issue_idx = 0
@@ -305,7 +325,10 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         self.interaction_trace: list[dict] = []
         self._instance_outcomes: list[InstanceOutcome] = []
 
-        self._env: Optional[object] = None
+        self._env: ShellEnvironment | None = None
+        self._environment_metadata: dict[str, Any] | None = None
+        self._evaluator_environment_metadata: list[dict[str, Any]] = []
+        self._env_failed = False
         self._new_issue_pending = False
 
     def prepare_run(self, run_index: int) -> None:
@@ -360,6 +383,9 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         self.total_interactions = 0
         self.interaction_trace = []
         self._instance_outcomes = []
+        self._environment_metadata = None
+        self._evaluator_environment_metadata = []
+        self._env_failed = False
         self._new_issue_pending = False
         self._stage_change_notice = None
 
@@ -375,9 +401,14 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         self.current_issue_idx = 0
         self.current_steps = 0
         self._new_issue_pending = False
+        self._env_failed = False
         self._stage_change_notice = None
         self._update_rollout_context_for_issue(self.current_issue_idx, announce=False)
-        self._start_container()
+        try:
+            self._start_container()
+        except Exception:
+            self._env_failed = True
+            raise
 
     def build_current_query(self) -> Query:
         return self._make_issue_query()
@@ -543,6 +574,10 @@ class CodebaseAdaptationTask(ContinualLearningTask):
 
         metrics = {
             "total_issues": total,
+            "environment_backend": self.environment_backend,
+            "environment_metadata": environment_metadata(self._env)
+            or self._environment_metadata,
+            "evaluator_environment_metadata": self._evaluator_environment_metadata,
             "successful": successful,
             "success_rate": success_rate,
             "avg_steps": avg_steps,
@@ -664,6 +699,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         }
         self.issue_history.append(issue_record)
         instance_outcome = self._build_issue_instance_outcome(issue_record)
+        self._env_failed = True
 
         obs = (
             "System failed to produce a valid structured command. "
@@ -711,38 +747,55 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         return self
 
     def _start_container(self):
-        """Start a Docker container and initialize the current generic-PR issue."""
-        self._cleanup_container()
+        """Start a task environment and initialize the current generic-PR issue."""
+        self._cleanup_container(failed=self._env_failed)
+        self._env_failed = False
+        self._environment_metadata = None
         instance = self.instances[self.current_issue_idx]
-        from minisweagent.environments.docker import DockerEnvironment
-
-        self._env = DockerEnvironment(
-            image=instance.image_name,
-            cwd=instance_cwd(instance.raw_data),
-            timeout=120,
-            run_args=["--rm", "--network=none"],
+        self._env = create_shell_environment(
+            EnvironmentConfig(
+                backend=self.environment_backend,
+                image=instance.image_name,
+                cwd=instance_cwd(instance.raw_data),
+                network_disabled=True,
+                daytona_snapshot=self.daytona_snapshot,
+                daytona_snapshot_by_image=self.daytona_snapshot_by_image,
+                daytona_target=self.daytona_target,
+                daytona_auto_delete_interval=self.daytona_auto_delete_interval,
+                daytona_preserve_on_failure=self.daytona_preserve_on_failure,
+                name_prefix="clbench-codebase",
+            )
         )
         logger.info(
-            f"Started container for issue {self.current_issue_idx + 1}/{len(self.instances)}: "
-            f"{instance.instance_id}"
+            "Started %s environment for issue %s/%s: %s",
+            self.environment_backend,
+            self.current_issue_idx + 1,
+            len(self.instances),
+            instance.instance_id,
         )
 
-        if not is_generic_pr_instance(instance.raw_data):
-            raise ValueError(
-                "CodebaseAdaptationTask now expects generic PR instances only. "
-                f"Received legacy instance: {instance.instance_id}"
-            )
-        self._initialize_generic_pr_workspace(instance)
+        try:
+            if not is_generic_pr_instance(instance.raw_data):
+                raise ValueError(
+                    "CodebaseAdaptationTask now expects generic PR instances only. "
+                    f"Received legacy instance: {instance.instance_id}"
+                )
+            self._initialize_generic_pr_workspace(instance)
+        except Exception:
+            self._env_failed = True
+            raise
 
     def _initialize_generic_pr_workspace(self, instance: TaskInstance) -> None:
         """Initialize a real-PR task from base_commit plus test_patch."""
 
-        if self._env is None or not getattr(self._env, "container_id", None):
-            raise RuntimeError("No active container available for generic PR init")
+        if self._env is None:
+            raise RuntimeError(
+                "No active task environment available for generic PR init"
+            )
 
         try:
-            initialize_generic_pr_container(
-                self._env.container_id,
+            initialize_generic_pr_environment(
+                self._env,
                 instance.raw_data,
             )
             logger.info(f"Initialized generic PR workspace for {instance.instance_id}")
@@ -752,14 +805,18 @@ class CodebaseAdaptationTask(ContinualLearningTask):
             )
             raise
 
-    def _cleanup_container(self):
-        """Stop current Docker container if running."""
+    def _cleanup_container(self, *, failed: bool = False):
+        """Stop current task environment if running."""
         if getattr(self, "_env", None) is not None:
             try:
-                self._env.cleanup()
+                self._env.cleanup(failed=failed)
             except Exception:
                 pass
+            self._environment_metadata = self._env.metadata()
             self._env = None
+
+    def cleanup(self) -> None:
+        self._cleanup_container(failed=self._env_failed)
 
     def _execute(self, command: str) -> dict:
         """Execute a bash command in the Docker container.
@@ -777,22 +834,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
                 "returncode": -1,
                 "exception_info": None,
             }
-        try:
-            result = self._env.execute({"command": command})
-            output = result.get("output", "")
-            rc = result.get("returncode", -1)
-            if rc != 0 and not output:
-                output = f"(exit code {rc})"
-            return {"output": output, "returncode": rc, "exception_info": None}
-        except Submitted:
-            return {
-                "output": "",
-                "returncode": 0,
-                "exception_info": None,
-                "submitted": True,
-            }
-        except Exception as e:
-            return {"output": f"ERROR: {e}", "returncode": -1, "exception_info": str(e)}
+        return self._env.execute(command).to_task_result()
 
     def _extract_patch(self) -> str:
         """Extract the model's git diff from the agent container."""
@@ -811,12 +853,21 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         result = evaluate_submission(
             model_patch=model_patch,
             instance=instance.raw_data,
+            environment_backend=self.environment_backend,
+            daytona_snapshot=self.daytona_snapshot,
+            daytona_snapshot_by_image=self.daytona_snapshot_by_image,
+            daytona_target=self.daytona_target,
+            daytona_auto_delete_interval=self.daytona_auto_delete_interval,
+            daytona_preserve_on_failure=self.daytona_preserve_on_failure,
         )
 
         trace_entry["eval_result"] = {
             "success": result.success,
             "status": result.status,
+            "environment_metadata": result.environment_metadata,
         }
+        if result.environment_metadata:
+            self._evaluator_environment_metadata.append(result.environment_metadata)
         self.interaction_trace.append(trace_entry)
 
         issue_record = {
@@ -831,6 +882,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         }
         self.issue_history.append(issue_record)
         instance_outcome = self._build_issue_instance_outcome(issue_record)
+        self._env_failed = not result.success
 
         return self._advance_to_next_issue(result, instance_outcome)
 
@@ -855,6 +907,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         }
         self.issue_history.append(issue_record)
         instance_outcome = self._build_issue_instance_outcome(issue_record)
+        self._env_failed = True
 
         obs = (
             f"Max steps ({self.max_steps_per_issue}) reached for this issue. "
@@ -957,6 +1010,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
             instance_id=instance.instance_id,
             instance_index=self.canonical_instance_index(self.current_issue_idx),
             metadata={
+                "environment_backend": self.environment_backend,
                 "issue_index": self.canonical_instance_index(self.current_issue_idx),
                 "active_issue_index": self.current_issue_idx,
                 "step": 0,
@@ -978,6 +1032,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
             instance_id=instance.instance_id,
             instance_index=self.canonical_instance_index(self.current_issue_idx),
             metadata={
+                "environment_backend": self.environment_backend,
                 "issue_index": self.canonical_instance_index(self.current_issue_idx),
                 "active_issue_index": self.current_issue_idx,
                 "step": self.current_steps,
@@ -987,7 +1042,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         )
 
     def __del__(self):
-        self._cleanup_container()
+        self._cleanup_container(failed=getattr(self, "_env_failed", False))
 
     def _rollout_stage_for_issue(self, issue_idx: int) -> dict[str, object] | None:
         if issue_idx < 0 or issue_idx >= len(self._schedule_stage_lookup):

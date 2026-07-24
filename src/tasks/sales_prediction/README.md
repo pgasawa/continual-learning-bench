@@ -150,9 +150,26 @@ Relevant task parameters:
 
 - `schedule` (alias `rollout_schedule`, default `"default"`): the 12-instance
   lifecycle schedule.
+- `environment_backend` (default `"local_docker"`): set to `"daytona"` to run
+  the task-side `/app` workspace in a Daytona sandbox instead of local Docker.
 - `max_steps_per_instance` (default `20`): bash command budget before forced
   extraction.
 - `repeat_instructions` (default `True`): canonical configs set this to `False`
   after the first instance to save context.
 - `clean_workspace_between_instances` (default `False`; baseline override
   `True`): wipe `/app` except `data/` between instances.
+
+Daytona is task infrastructure here, not the evaluated learning system. Install
+the Daytona extra and export SDK credentials first. Use `DAYTONA_API_KEY`, or
+`DAYTONA_JWT_TOKEN` plus `DAYTONA_ORGANIZATION_ID`:
+
+```bash
+uv sync --extra daytona --extra sales_prediction
+export DAYTONA_API_KEY=<your-api-key>
+clbench run --config=configs/sales_prediction/sp_lifecycle_icl_daytona.json
+```
+
+By default the Daytona backend creates from the Sales Prediction Docker image,
+blocks outbound network during task execution, records curated sandbox metadata,
+and deletes the sandbox on cleanup. Use `daytona_snapshot` for a pinned prebuilt
+environment or `daytona_target` to select a runner target.

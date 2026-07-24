@@ -10,7 +10,7 @@
 
 ## Quickstart
 
-Continual Learning Bench requires Python 3.13 or later, [uv](https://github.com/astral-sh/uv), and a local Docker installation for tasks and systems that run containerized workspaces.
+Continual Learning Bench requires Python 3.13 or later, [uv](https://github.com/astral-sh/uv), and a local Docker installation for tasks and systems that run containerized workspaces. Shell/workspace tasks can also opt into Daytona task environments with the `daytona` extra.
 
 ```bash
 git clone https://github.com/pgasawa/continual-learning-bench && cd continual-learning-bench
@@ -25,6 +25,16 @@ Add any model provider keys you need to a `.env` file in the project root, then 
 clbench list
 clbench run exploitable_poker --schedule quick_test --system icl
 ```
+
+Local Docker is the default task-environment backend. Sales Prediction and Codebase Adaptation also accept `environment_backend="daytona"` when the Daytona SDK is installed and credentials are exported through `DAYTONA_API_KEY` or `DAYTONA_JWT_TOKEN` plus `DAYTONA_ORGANIZATION_ID`:
+
+```bash
+uv sync --extra daytona --extra sales_prediction --extra codebase_adaptation
+clbench run --config=configs/sales_prediction/sp_lifecycle_icl_daytona.json
+clbench run --config=configs/codebase_adaptation/codebase_adaptation_icl_daytona.json
+```
+
+Daytona runs create task-side sandboxes from the task Docker image by default, block runtime network for the offline task environment, and delete sandboxes during cleanup. Optional task params include `daytona_snapshot`, `daytona_snapshot_by_image`, `daytona_target`, `daytona_auto_delete_interval`, and `daytona_preserve_on_failure`.
 
 The [Quickstart Guide](https://continual-learning-bench.com/docs/quickstart/) walks through the same flow in more detail, including how to inspect tasks, systems, schedules, and run outputs.
 

@@ -32,6 +32,24 @@ clbench run codebase_adaptation --system icl --schedule default --system.model <
 
 Use `clbench inspect task codebase_adaptation` for current schedule and variant metadata.
 
+Local Docker is the default task-environment backend. To run the agent workspace
+and the fresh evaluator workspace in Daytona, install the Daytona extra, export
+SDK credentials (`DAYTONA_API_KEY`, or `DAYTONA_JWT_TOKEN` plus
+`DAYTONA_ORGANIZATION_ID`), and set `environment_backend` to `daytona`:
+
+```bash
+uv sync --extra daytona --extra codebase_adaptation
+export DAYTONA_API_KEY=<your-api-key>
+clbench run --config=configs/codebase_adaptation/codebase_adaptation_icl_daytona.json
+```
+
+Daytona is task infrastructure, not a learning system. The backend creates from
+each task instance's Docker image unless `daytona_snapshot` or
+`daytona_snapshot_by_image` is supplied, blocks outbound network during task
+execution, records curated sandbox metadata, and deletes sandboxes during
+cleanup. If an explicit image-to-snapshot mapping omits an instance image, the
+run fails instead of falling back to image mode.
+
 ## Evaluation
 
 For each submitted patch, evaluation starts from a clean task image, checks out the task `base_commit`, applies the official `test_patch`, strips model edits to test-owned paths, applies the model patch, and runs the derived test targets. Exact `FAIL_TO_PASS` and `PASS_TO_PASS` node IDs are used when available.

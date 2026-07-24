@@ -45,6 +45,10 @@ from .run_ids import new_timestamp_run_id, safe_run_id_component
 from .runs import RunMode, run_benchmark
 from .runs.common import filter_init_params
 from .system_manifest import build_system_manifest_entry
+from .tasks.environments import (
+    is_environment_backend_param,
+    validate_environment_backend,
+)
 from .tasks.variants import list_task_variants
 from .tasks.schedules import get_task_schedule, list_task_schedules
 from .trace_metrics import (
@@ -566,6 +570,15 @@ def resolve_parameters(
         Resolved parameters dict
     """
     result = {}
+    unsupported_environment_keys = [
+        key
+        for key in {*config_params, *cli_params}
+        if is_environment_backend_param(key) and key not in class_params
+    ]
+    if namespace == "task" and unsupported_environment_keys:
+        raise ValueError(
+            f"Task does not support {unsupported_environment_keys[0]}. Daytona is only available for shell/workspace tasks in this release."
+        )
 
     for param_name, param_info in class_params.items():
         # Start with default
@@ -594,6 +607,8 @@ def resolve_parameters(
 
         # Only include if not None or required
         if value is not None or param_info["required"]:
+            if namespace == "task" and param_name == "environment_backend":
+                validate_environment_backend(value)
             result[param_name] = value
 
     return result

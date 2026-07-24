@@ -24,6 +24,7 @@ from ..interface import (
     InstanceOutcome,
     TaskResult,
 )
+from ..tasks.environments import is_environment_backend_param
 from ..trace_storage import _atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,15 @@ def filter_init_params(
     if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
         return params
     valid_keys = set(sig.parameters.keys()) - {"self"}
+    unsupported_environment_keys = [
+        key
+        for key in params
+        if is_environment_backend_param(key) and key not in valid_keys
+    ]
+    if unsupported_environment_keys:
+        raise ValueError(
+            f"Task does not support {unsupported_environment_keys[0]}. Daytona is only available for shell/workspace tasks in this release."
+        )
     return {k: v for k, v in params.items() if k in valid_keys}
 
 

@@ -40,6 +40,14 @@ from ...interface import (
 from ...registry import register_task
 from ..schedules import TaskScheduleSpec, get_task_schedule
 from ..variants import TaskVariantSpec, get_task_variant
+from ..environments import (
+    EnvironmentBackend,
+    EnvironmentConfig,
+    ShellEnvironment,
+    create_shell_environment,
+    environment_metadata,
+    validate_environment_backend,
+)
 from .corpus import (
     FrozenCorpusInstance,
     TargetEntity,
@@ -268,9 +276,16 @@ class SalesPredictionTask(ContinualLearningTask):
         variant: Optional[str] = None,
         rollout_schedule: Optional[str] = None,
         docker_image: str = _DOCKER_IMAGE,
+        environment_backend: EnvironmentBackend = "local_docker",
+        daytona_snapshot: str | None = None,
+        daytona_snapshot_by_image: dict[str, str] | None = None,
+        daytona_target: str | None = None,
+        daytona_auto_delete_interval: int = 60,
+        daytona_preserve_on_failure: bool = False,
         clean_workspace_between_instances: bool = False,
         repeat_instructions: bool = True,
     ):
+        validate_environment_backend(environment_backend)
         if schedule is not None:
             if rollout_schedule is not None and rollout_schedule != schedule:
                 raise ValueError(
@@ -282,6 +297,12 @@ class SalesPredictionTask(ContinualLearningTask):
         self.base_year = base_year
         self.forecast_horizon = forecast_horizon
         self.docker_image = docker_image
+        self.environment_backend = environment_backend
+        self.daytona_snapshot = daytona_snapshot
+        self.daytona_snapshot_by_image = daytona_snapshot_by_image
+        self.daytona_target = daytona_target
+        self.daytona_auto_delete_interval = daytona_auto_delete_interval
+        self.daytona_preserve_on_failure = daytona_preserve_on_failure
         self.variant = variant
         self.schedule = rollout_schedule
         self.clean_workspace_between_instances = clean_workspace_between_instances
@@ -348,7 +369,9 @@ class SalesPredictionTask(ContinualLearningTask):
         self._resolved_panel_path: Path | None = None
         self._resolved_metadata_path: Path | None = None
 
-        self._env: object | None = None
+        self._env: ShellEnvironment | None = None
+        self._environment_metadata: dict[str, Any] | None = None
+        self._env_failed = False
         self._new_instance_pending = False
         self._awaiting_predictions = False
         self._pending_trace_entry: dict[str, Any] | None = None
@@ -371,6 +394,8 @@ class SalesPredictionTask(ContinualLearningTask):
         self.total_interactions = 0
         self.interaction_trace = []
         self._instance_outcomes = []
+        self._environment_metadata = None
+        self._env_failed = False
         self._new_instance_pending = False
         self._awaiting_predictions = False
         self._pending_trace_entry = None
@@ -382,12 +407,17 @@ class SalesPredictionTask(ContinualLearningTask):
         self.current_instance_idx = 0
         self.current_steps = 0
         self._new_instance_pending = False
+        self._env_failed = False
         self._awaiting_predictions = False
         self._pending_trace_entry = None
         self._prev_eval_result = None
         self._prev_round_feedback_payload = None
-        self._start_container()
-        self._push_data_room()
+        try:
+            self._start_container()
+            self._push_data_room()
+        except Exception:
+            self._env_failed = True
+            raise
 
     def build_current_query(self) -> Query:
         return self._make_instance_query()
@@ -549,6 +579,9 @@ class SalesPredictionTask(ContinualLearningTask):
 
         metrics: dict[str, Any] = {
             "total_instances": total,
+            "environment_backend": self.environment_backend,
+            "environment_metadata": environment_metadata(self._env)
+            or self._environment_metadata,
             "mean_score": round(mean_score, 4),
             "mean_steps": round(mean_steps, 2),
             "steps_curve": steps_curve,
@@ -797,28 +830,43 @@ class SalesPredictionTask(ContinualLearningTask):
                     )
                     idx += 1
 
-    # ── Docker lifecycle ──────────────────────────────────────────────
+    # ── Environment lifecycle ────────────────────────────────────────
 
     def _start_container(self) -> None:
-        self._cleanup_container()
-        from minisweagent.environments.docker import DockerEnvironment
-
-        self._env = DockerEnvironment(
-            image=self.docker_image,
-            cwd="/app",
-            timeout=120,
-            pull_timeout=600,
-            run_args=["--rm", "--network=none"],
+        self._cleanup_container(failed=self._env_failed)
+        self._env_failed = False
+        self._environment_metadata = None
+        self._env = create_shell_environment(
+            EnvironmentConfig(
+                backend=self.environment_backend,
+                image=self.docker_image,
+                cwd="/app",
+                network_disabled=True,
+                daytona_snapshot=self.daytona_snapshot,
+                daytona_snapshot_by_image=self.daytona_snapshot_by_image,
+                daytona_target=self.daytona_target,
+                daytona_auto_delete_interval=self.daytona_auto_delete_interval,
+                daytona_preserve_on_failure=self.daytona_preserve_on_failure,
+                name_prefix="clbench-sales",
+            )
         )
-        logger.info("Started sales prediction container (%s)", self.docker_image)
+        logger.info(
+            "Started sales prediction %s environment (%s)",
+            self.environment_backend,
+            self.docker_image,
+        )
 
-    def _cleanup_container(self) -> None:
+    def _cleanup_container(self, *, failed: bool = False) -> None:
         if getattr(self, "_env", None) is not None:
             try:
-                self._env.cleanup()  # type: ignore[attr-defined]
+                self._env.cleanup(failed=failed)
             except Exception:
                 pass
+            self._environment_metadata = self._env.metadata()
             self._env = None
+
+    def cleanup(self) -> None:
+        self._cleanup_container(failed=self._env_failed)
 
     def _execute(self, command: str) -> dict[str, Any]:
         if self._env is None:
@@ -827,28 +875,7 @@ class SalesPredictionTask(ContinualLearningTask):
                 "returncode": -1,
                 "exception_info": None,
             }
-        from minisweagent.exceptions import Submitted
-
-        try:
-            result = self._env.execute({"command": command})  # type: ignore[attr-defined]
-            output = result.get("output", "")
-            rc = result.get("returncode", -1)
-            if rc != 0 and not output:
-                output = f"(exit code {rc})"
-            return {"output": output, "returncode": rc, "exception_info": None}
-        except Submitted:
-            return {
-                "output": "",
-                "returncode": 0,
-                "exception_info": None,
-                "submitted": True,
-            }
-        except Exception as e:
-            return {
-                "output": f"ERROR: {e}",
-                "returncode": -1,
-                "exception_info": str(e),
-            }
+        return self._env.execute(command).to_task_result()
 
     # ── Data room management ──────────────────────────────────────────
 
@@ -901,8 +928,9 @@ class SalesPredictionTask(ContinualLearningTask):
 
     def _write_file_to_container(self, path: str, content: str) -> None:
         """Write a file into the running container via bash."""
-        cmd = f"cat <<'____EOF____' > {path}\n{content}\n____EOF____"
-        self._execute(cmd)
+        if self._env is None:
+            raise RuntimeError("No active task environment")
+        self._env.write_text(path, content)
 
     # ── Query/observation helpers ─────────────────────────────────────
 
@@ -986,6 +1014,7 @@ class SalesPredictionTask(ContinualLearningTask):
             ),
             instance_index=self.canonical_instance_index(self.current_instance_idx),
             metadata={
+                "environment_backend": self.environment_backend,
                 "instance_idx": self.canonical_instance_index(
                     self.current_instance_idx
                 ),
@@ -1014,6 +1043,7 @@ class SalesPredictionTask(ContinualLearningTask):
             ),
             instance_index=self.canonical_instance_index(self.current_instance_idx),
             metadata={
+                "environment_backend": self.environment_backend,
                 "instance_idx": self.canonical_instance_index(
                     self.current_instance_idx
                 ),
@@ -1169,6 +1199,11 @@ class SalesPredictionTask(ContinualLearningTask):
         }
         self.instance_history.append(record)
         outcome = self._build_instance_outcome(record)
+        self._env_failed = (
+            self._env_failed
+            or bool(record.get("timed_out"))
+            or not bool(outcome.success)
+        )
 
         obs_msg = (
             f"Predictions recorded for year {inst.target_year}. "
@@ -1277,4 +1312,4 @@ class SalesPredictionTask(ContinualLearningTask):
         return outcome
 
     def __del__(self) -> None:
-        self._cleanup_container()
+        self._cleanup_container(failed=getattr(self, "_env_failed", False))
