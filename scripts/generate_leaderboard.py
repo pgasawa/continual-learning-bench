@@ -31,6 +31,7 @@ SYSTEM_DEFS = [
     ("ace", "ACE", "ace"),
     ("codex", "Codex", "codex"),
     ("claude-code", "Claude Code", "claude-code"),
+    ("ouroboros", "Ouroboros", "ouroboros"),
 ]
 
 # Add entries here when a new model is introduced.
@@ -40,6 +41,7 @@ MODEL_DISPLAY = {
     "gemini-3-flash": "Gemini 3 Flash",
     "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
     "claude-sonnet-4-6": "Claude Sonnet 4.6",
+    "claude-sonnet-4.6": "Claude Sonnet 4.6",
     "claude-opus-4-7": "Claude Opus 4.7",
     "claude-code-sonnet-4.6": "Claude Code Sonnet 4.6",
 }
