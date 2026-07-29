@@ -1,0 +1,176 @@
+{
+  "kind": "run_all_manifest",
+  "run_name": "ouroboros-claude-sonnet-4.6",
+  "run_slug": "ouroboros-claude-sonnet-4.6",
+  "run_group_id": "2026-07-28T21-08-39.401615Z_run-all",
+  "system": "ouroboros",
+  "system_args": [
+    "--system-params",
+    "{\"model\":\"openrouter/anthropic/claude-sonnet-4.6\",\"engine\":\"ouroboros\",\"mode\":\"stateful\",\"docker\":true,\"loop\":\"live\",\"conversation\":\"question\",\"memory_instruction\":\"tools\",\"max_workers\":3,\"evolution\":false,\"final_answer_delivery\":true,\"ouroboros_repo\":\"<ENGINE_CLONE>\"}"
+  ],
+  "started_at": "2026-07-28T21:08:39.401661+00:00",
+  "finished_at": "2026-07-29T07:16:05.235738+00:00",
+  "status": "completed",
+  "poll_interval_ms": 2000,
+  "manifest_path": "final_results/runs/ouroboros-claude-sonnet-4.6/manifest.json",
+  "final_results_dir": "final_results/runs/ouroboros-claude-sonnet-4.6",
+  "logs_dir": "final_results/runs/ouroboros-claude-sonnet-4.6/logs",
+  "current_batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+  "tasks": [
+    {
+      "task": "blind_spectrum_monitoring",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-07-28T21:08:39.405213+00:00",
+      "finished_at": "2026-07-29T01:09:19.037884+00:00",
+      "exit_code": 0,
+      "duration_seconds": 14439.63,
+      "log_path": "final_results/runs/ouroboros-claude-sonnet-4.6/logs/blind_spectrum_monitoring.log",
+      "live_manifest_path": "results/blind_spectrum_monitoring/live/2026-07-28T21-08-39.401615Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/blind_spectrum_monitoring.json.gz",
+      "final_artifact_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/blind_spectrum_monitoring.json.gz",
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "headline": {
+        "cumulative_gain": 14.22608,
+        "total_reward": 33.98578,
+        "mean_latency_seconds": 145.092171,
+        "total_cost_usd": 71.4153836
+      },
+      "raw_summary_path": "results/blind_spectrum_monitoring/viewer_artifact_2026-07-28T21-08-39.401615Z_run-all_20260729_010913.json.gz"
+    },
+    {
+      "task": "codebase_adaptation",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-07-28T21:08:39.406053+00:00",
+      "finished_at": "2026-07-28T22:36:50.261826+00:00",
+      "exit_code": 0,
+      "duration_seconds": 5290.85,
+      "log_path": "final_results/runs/ouroboros-claude-sonnet-4.6/logs/codebase_adaptation.log",
+      "live_manifest_path": "results/codebase_adaptation/live/2026-07-28T21-08-39.401615Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/codebase_adaptation.json.gz",
+      "final_artifact_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/codebase_adaptation.json.gz",
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "headline": {
+        "cumulative_gain": 2.15,
+        "total_reward": 12.125,
+        "mean_latency_seconds": 198.002433,
+        "total_cost_usd": 31.471041
+      },
+      "raw_summary_path": "results/codebase_adaptation/viewer_artifact_2026-07-28T21-08-39.401615Z_run-all_20260728_223644.json.gz"
+    },
+    {
+      "task": "cohort_studies",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-07-28T21:08:39.407730+00:00",
+      "finished_at": "2026-07-29T02:15:25.289250+00:00",
+      "exit_code": 0,
+      "duration_seconds": 18405.88,
+      "log_path": "final_results/runs/ouroboros-claude-sonnet-4.6/logs/cohort_studies.log",
+      "live_manifest_path": "results/cohort_studies/live/2026-07-28T21-08-39.401615Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/cohort_studies.json.gz",
+      "final_artifact_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/cohort_studies.json.gz",
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "headline": {
+        "cumulative_gain": -0.284499,
+        "total_reward": -0.41576,
+        "mean_latency_seconds": 805.372452,
+        "total_cost_usd": 84.1104676
+      },
+      "raw_summary_path": "results/cohort_studies/viewer_artifact_2026-07-28T21-08-39.401615Z_run-all_20260729_021519.json.gz"
+    },
+    {
+      "task": "database_exploration",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-07-28T21:08:39.407419+00:00",
+      "finished_at": "2026-07-28T22:25:29.140141+00:00",
+      "exit_code": 0,
+      "duration_seconds": 4609.73,
+      "log_path": "final_results/runs/ouroboros-claude-sonnet-4.6/logs/database_exploration.log",
+      "live_manifest_path": "results/database_exploration/live/2026-07-28T21-08-39.401615Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/database_exploration.json.gz",
+      "final_artifact_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/database_exploration.json.gz",
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "headline": {
+        "cumulative_gain": 14.35978,
+        "total_reward": 22.22648,
+        "mean_latency_seconds": 101.41656,
+        "total_cost_usd": 27.957946
+      },
+      "raw_summary_path": "results/database_exploration/viewer_artifact_2026-07-28T21-08-39.401615Z_run-all_20260728_222523.json.gz"
+    },
+    {
+      "task": "exploitable_poker",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-07-28T21:08:39.408038+00:00",
+      "finished_at": "2026-07-29T07:16:05.024069+00:00",
+      "exit_code": 0,
+      "duration_seconds": 36445.61,
+      "log_path": "final_results/runs/ouroboros-claude-sonnet-4.6/logs/exploitable_poker.log",
+      "live_manifest_path": "results/exploitable_poker/live/2026-07-28T21-08-39.401615Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/exploitable_poker.json.gz",
+      "final_artifact_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/exploitable_poker.json.gz",
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "headline": {
+        "cumulative_gain": -176.52,
+        "total_reward": 113.48,
+        "mean_latency_seconds": 326.874809,
+        "total_cost_usd": 149.5155184
+      },
+      "raw_summary_path": "results/exploitable_poker/viewer_artifact_2026-07-28T21-08-39.401615Z_run-all_20260729_071559.json.gz"
+    },
+    {
+      "task": "sales_prediction",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-07-28T21:08:39.408142+00:00",
+      "finished_at": "2026-07-29T04:26:05.761987+00:00",
+      "exit_code": 0,
+      "duration_seconds": 26246.35,
+      "log_path": "final_results/runs/ouroboros-claude-sonnet-4.6/logs/sales_prediction.log",
+      "live_manifest_path": "results/sales_prediction/live/2026-07-28T21-08-39.401615Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/sales_prediction.json.gz",
+      "final_artifact_path": "final_results/runs/ouroboros-claude-sonnet-4.6/tasks/sales_prediction.json.gz",
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "headline": {
+        "cumulative_gain": 4.43698,
+        "total_reward": 8.98468,
+        "mean_latency_seconds": 1460.39293,
+        "total_cost_usd": 76.1754866
+      },
+      "raw_summary_path": "results/sales_prediction/viewer_artifact_2026-07-28T21-08-39.401615Z_run-all_20260729_042600.json.gz"
+    }
+  ],
+  "task_artifacts": null,
+  "task_artifacts_path": "final_results/runs/ouroboros-claude-sonnet-4.6/task_artifacts.json.gz",
+  "batches": [
+    {
+      "batch_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "run_group_id": "2026-07-28T21-08-39.401615Z_run-all",
+      "mode": "initial",
+      "tasks_run": [
+        "blind_spectrum_monitoring",
+        "codebase_adaptation",
+        "cohort_studies",
+        "database_exploration",
+        "exploitable_poker",
+        "sales_prediction"
+      ],
+      "tasks_passed": [
+        "blind_spectrum_monitoring",
+        "codebase_adaptation",
+        "cohort_studies",
+        "database_exploration",
+        "exploitable_poker",
+        "sales_prediction"
+      ],
+      "tasks_failed": [],
+      "tasks_skipped": [],
+      "started_at": "2026-07-28T21:08:39.401661+00:00",
+      "finished_at": "2026-07-29T07:16:05.235738+00:00"
+    }
+  ]
+}
