@@ -608,3 +608,64 @@ class TestValidateWithCoercionParameterEnvelope:
         result = validate_with_coercion(wrapped, OptionalFieldSchema)
         assert result.name == "bar"
         assert result.score == 3.14
+
+
+class TestSchemaEchoHandling:
+    def test_prompt_instruction_includes_value_example(self):
+        text = structured_output.schema_to_prompt_instruction(SimpleSchema)
+        assert "DATA VALUES" in text
+        assert "do NOT copy" in text
+        assert '"name": "example"' in text
+        assert '"value": 0' in text
+
+    def test_detects_schema_property_echo(self):
+        echoed = {
+            "name": {"description": "Name", "type": "string"},
+            "value": {"description": "Value", "type": "integer"},
+        }
+        assert structured_output.payload_looks_like_schema_echo(echoed, SimpleSchema)
+        assert not structured_output.payload_looks_like_schema_echo(
+            {"name": "ok", "value": 1},
+            SimpleSchema,
+        )
+
+    def test_completion_retries_once_on_schema_echo(self, monkeypatch):
+        monkeypatch.setattr(
+            structured_output, "_model_supports_response_format", lambda _model: False
+        )
+        monkeypatch.setattr(
+            structured_output,
+            "build_usage_event_from_response",
+            lambda **kwargs: UsageEvent(call_type="completion", model="test-model"),
+        )
+        monkeypatch.setattr(structured_output.time, "sleep", lambda _seconds: None)
+
+        echo = json.dumps(
+            {
+                "answer": {
+                    "description": "The answer",
+                    "type": "string",
+                }
+            }
+        )
+        calls = {"count": 0, "messages": None}
+
+        def fake_completion(**kwargs):
+            calls["count"] += 1
+            calls["messages"] = kwargs.get("messages")
+            if calls["count"] == 1:
+                return FakeResponse(echo)
+            return FakeResponse('{"answer":"ok"}')
+
+        monkeypatch.setattr(structured_output.litellm, "completion", fake_completion)
+
+        parsed, _usage = completion_with_structured_output(
+            model="gemini/gemini-3.6-flash",
+            messages=[{"role": "user", "content": "reflect"}],
+            response_schema=RetryTestSchema,
+        )
+
+        assert parsed.answer == "ok"
+        assert calls["count"] == 2
+        user_content = calls["messages"][-1]["content"]
+        assert "JSON Schema metadata" in user_content
