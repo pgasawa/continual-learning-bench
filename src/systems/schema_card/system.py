@@ -1,11 +1,14 @@
 """Schema-card system tuned for database_exploration continual learning.
 
-Stateful runs keep a living list of schema cards. During an instance the model
-only answers; after the instance completes a reflector rebuilds the card
-notebook (add/edit/remove) from the episode + prior cards. Cards are injected
-immediately after the system prompt as durable memory. Disabled when
-``stateless=True``. On schema-drift NOTICE, cards are cleared by default so
-the notebook rebuilds from post-drift evidence (optional keep+STALE mode).
+Stateful runs keep a living list of schema cards with confidence upvotes.
+During an instance the model only answers; after the instance completes a
+reflector rebuilds the card notebook (add/edit/remove) from the episode +
+prior cards. When eval feedback marks the answer CORRECT, surviving/new cards
+gain +1 confidence (Stack Overflow–style). Cards are injected immediately
+after the system prompt as trusted memory learned this run — rediscovery of
+covered facts is discouraged. Disabled when ``stateless=True``. On schema-drift
+NOTICE, cards are cleared by default (confidence resets) so the notebook
+rebuilds from post-drift evidence (optional keep+STALE mode).
 """
 
 from __future__ import annotations
@@ -42,15 +45,20 @@ DEFAULT_SYSTEM_PROMPT = """\
 You are answering natural-language questions about an unknown SQLite database.
 You may issue exploratory QUERY actions, then submit an ANSWER.
 
-Durable schema memory is provided immediately after these instructions as
-SCHEMA CARDS. Treat that block as trusted environment knowledge (tables,
-columns, types, joins, encodings) — stronger than a casual chat note. Prefer
-using it over rediscovering the same facts with sqlite_master / PRAGMA unless
-the cards are marked STALE or a query error contradicts them.
+Durable SCHEMA CARDS appear immediately after these instructions. They were
+learned from earlier questions in this run (and carry a confidence score that
+rises when answers are marked correct). Treat them as trusted environment
+memory for tables, columns, types, joins, and encodings — not as casual notes.
 
-Do not invent schema facts. If a needed fact is missing, explore with SQL, then
-continue answering. Schema cards are updated automatically after each question
-from your episode and feedback; you do not write cards during the question.
+Do NOT rediscover facts already stated on cards (no sqlite_master / PRAGMA
+table_info / sample probes for those facts) unless the card block is empty,
+marked STALE, or a query error contradicts a card. Explore with SQL only for
+facts that are missing from the cards. When cards are cleared after a schema
+change, rediscovery is expected until new cards are written.
+
+Do not invent schema facts. Schema cards are updated automatically after each
+question from your episode and feedback; you do not write cards during the
+question.
 """
 
 REFLECTION_SYSTEM_PROMPT = """\
@@ -69,6 +77,15 @@ older cards when they conflict. Prefer fewer, consistent cards.
 - If feedback shows an incorrect answer caused by a bad schema assumption, \
 fix or remove that assumption.
 - If cards were stale after a migration, rewrite them from episode evidence.
+- Confidence scores are maintained outside this step; return card text only.
+
+Write slightly longer, more complete cards than a one-line gloss. For each \
+durable fact, include enough detail that a later agent can apply it without \
+re-deriving it: what the fact is, when it applies, related columns/keys that \
+play the same role (if any), coverage or sparsity if you observed it, and \
+common misuses to avoid. Prefer one thorough card over several thin ones when \
+they describe the same area. Do not invent measurements you did not see in \
+the episode or prior cards; if coverage is unknown, say so briefly.
 """
 
 STALE_CARDS_WARNING = (
@@ -78,13 +95,28 @@ STALE_CARDS_WARNING = (
     "notebook is rebuilt after this question."
 )
 
-MEMORY_HEADER = (
-    "SCHEMA CARDS (trusted durable memory — authoritative unless marked STALE)"
+MEMORY_HEADER = "SCHEMA CARDS (learned this run — trust them; confidence = successful-answer upvotes)"
+
+TRUST_CARDS_REMINDER = (
+    "These cards were earned from prior questions in this run. Prefer them over "
+    "schema rediscovery. Higher confidence means the card has survived more "
+    "correct answers. Do not re-probe covered facts unless STALE or a query error."
 )
 
 
+class SchemaCardEntry(BaseModel):
+    """One durable schema card with Stack Overflow–style confidence upvotes."""
+
+    content: str
+    confidence: int = Field(
+        default=0,
+        ge=0,
+        description="Upvotes from episodes whose answer was marked correct.",
+    )
+
+
 class SchemaCardNotebook(BaseModel):
-    """Reflector output: full rebuilt card notebook."""
+    """Reflector output: full rebuilt card notebook (text only)."""
 
     model_config = {
         "json_schema_extra": {
@@ -120,17 +152,58 @@ class SchemaCardNotebook(BaseModel):
     )
 
 
-def _format_schema_cards_block(cards: list[str], *, stale: bool) -> str:
+def _feedback_marked_correct(content: str) -> bool:
+    """Interpret eval feedback: CORRECT upvote signal, INCORRECT otherwise."""
+    upper = content.upper()
+    if "INCORRECT" in upper:
+        return False
+    return "CORRECT" in upper
+
+
+def _merge_cards_with_confidence(
+    prior: list[SchemaCardEntry],
+    new_texts: list[str],
+    *,
+    upvote: bool,
+) -> list[SchemaCardEntry]:
+    """Carry confidence across exact text matches; upvote all cards on CORRECT."""
+    prior_confidence = {card.content: card.confidence for card in prior}
+    merged: list[SchemaCardEntry] = []
+    for text in new_texts:
+        content = text.strip()
+        if not content:
+            continue
+        confidence = prior_confidence.get(content, 0)
+        if upvote:
+            confidence += 1
+        merged.append(SchemaCardEntry(content=content, confidence=confidence))
+    return merged
+
+
+def _format_schema_cards_block(
+    cards: list[SchemaCardEntry] | list[str],
+    *,
+    stale: bool,
+) -> str:
     lines = [f"=== {MEMORY_HEADER} ==="]
     if stale:
         lines.append(STALE_CARDS_WARNING)
+        lines.append("")
+    elif cards:
+        lines.append(TRUST_CARDS_REMINDER)
         lines.append("")
     if not cards:
         lines.append("(no schema cards yet)")
     else:
         for index, card in enumerate(cards, start=1):
-            lines.append(f"--- card {index} ---")
-            lines.append(card.strip())
+            if isinstance(card, SchemaCardEntry):
+                content = card.content.strip()
+                confidence = card.confidence
+            else:
+                content = str(card).strip()
+                confidence = 0
+            lines.append(f"--- card {index} (confidence: {confidence}) ---")
+            lines.append(content)
             lines.append("")
     lines.append("=== END SCHEMA CARDS ===")
     return "\n".join(lines).strip()
@@ -214,7 +287,7 @@ class SchemaCardSystem(ContinualLearningSystem):
 
         self.messages: list[dict[str, str]] = []
         self._token_budget = TokenBudgetTracker()
-        self.schema_cards: list[str] = []
+        self.schema_cards: list[SchemaCardEntry] = []
         self.cards_stale: bool = False
         self.drift_notice_count: int = 0
         self.reflection_count: int = 0
@@ -358,7 +431,7 @@ class SchemaCardSystem(ContinualLearningSystem):
     def get_run_artifacts(self) -> dict[str, Any]:
         return {
             "artifact_type": "schema_card",
-            "schema_cards": list(self.schema_cards),
+            "schema_cards": [card.model_dump() for card in self.schema_cards],
             "schema_card_count": len(self.schema_cards),
             "cards_stale": self.cards_stale,
             "drop_stale_cards": self.drop_stale_cards,
@@ -393,6 +466,12 @@ class SchemaCardSystem(ContinualLearningSystem):
         prior_cards = list(self.schema_cards)
         episode_text = _format_episode_for_reflection(self._episode)
         cards_text = _format_schema_cards_block(prior_cards, stale=self.cards_stale)
+        feedback_text = ""
+        for turn in reversed(self._episode):
+            if turn.get("role") == "feedback":
+                feedback_text = turn.get("content") or ""
+                break
+        upvote = _feedback_marked_correct(feedback_text)
         user_prompt = "\n\n".join(
             [
                 "Prior schema cards:",
@@ -403,12 +482,16 @@ class SchemaCardSystem(ContinualLearningSystem):
                 json.dumps(
                     {
                         "schema_cards": [
-                            "Table products has columns id INTEGER, main_cat TEXT"
+                            "Table products has columns id INTEGER, main_cat TEXT. "
+                            "main_cat is sparse for some rows; category joins may "
+                            "need the taxonomy table when main_cat is null. "
+                            "Coverage unknown beyond this episode unless noted."
                         ],
                         "change_summary": "Added verified columns",
                     }
                 ),
-                "schema_cards must be an array of strings; change_summary a string.",
+                "schema_cards must be an array of strings (each card can be a "
+                "short paragraph); change_summary a string.",
             ]
         )
         messages = [
@@ -427,21 +510,26 @@ class SchemaCardSystem(ContinualLearningSystem):
         except Exception as exc:
             raise RuntimeError(f"Schema card reflection failed: {exc}") from exc
 
-        rebuilt = [
+        rebuilt_texts = [
             card.strip()
             for card in list(notebook.schema_cards)
             if isinstance(card, str) and card.strip()
         ]
-        self.schema_cards = rebuilt
+        self.schema_cards = _merge_cards_with_confidence(
+            prior_cards,
+            rebuilt_texts,
+            upvote=upvote,
+        )
         self.cards_stale = False
         self.reflection_count += 1
         self.card_snapshots.append(
             {
                 "reflection_index": self.reflection_count,
                 "interaction_count": self.interaction_count,
-                "prior_cards": prior_cards,
-                "schema_cards": list(self.schema_cards),
+                "prior_cards": [card.model_dump() for card in prior_cards],
+                "schema_cards": [card.model_dump() for card in self.schema_cards],
                 "change_summary": notebook.change_summary,
+                "feedback_correct": upvote,
             }
         )
 

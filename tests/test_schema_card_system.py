@@ -13,8 +13,12 @@ from src.systems.schema_card.system import (
     DRIFT_MARKER,
     MEMORY_HEADER,
     STALE_CARDS_WARNING,
+    TRUST_CARDS_REMINDER,
+    SchemaCardEntry,
     SchemaCardNotebook,
     SchemaCardSystem,
+    _feedback_marked_correct,
+    _merge_cards_with_confidence,
 )
 from src.usage import UsageEvent
 
@@ -69,6 +73,39 @@ class TestSchemaCardRegistry:
         assert get_system_class("schema_card").__name__ == "SchemaCardSystem"
 
 
+class TestConfidenceHelpers:
+    def test_feedback_correct_detection(self):
+        assert _feedback_marked_correct("CORRECT: 42") is True
+        assert _feedback_marked_correct("Question 1: CORRECT! Your answer: 1") is True
+        assert _feedback_marked_correct("INCORRECT. Correct answer: 1") is False
+        assert _feedback_marked_correct("no signal") is False
+
+    def test_merge_upvotes_and_carries_exact_matches(self):
+        prior = [
+            SchemaCardEntry(content="tables: items_g1", confidence=2),
+            SchemaCardEntry(content="old fact", confidence=4),
+        ]
+        merged = _merge_cards_with_confidence(
+            prior,
+            ["tables: items_g1", "brand lives in attrs"],
+            upvote=True,
+        )
+        assert merged == [
+            SchemaCardEntry(content="tables: items_g1", confidence=3),
+            SchemaCardEntry(content="brand lives in attrs", confidence=1),
+        ]
+
+    def test_merge_without_upvote_preserves_scores(self):
+        prior = [SchemaCardEntry(content="tables: items_g1", confidence=2)]
+        merged = _merge_cards_with_confidence(
+            prior,
+            ["tables: items_g1", "new"],
+            upvote=False,
+        )
+        assert merged[0].confidence == 2
+        assert merged[1].confidence == 0
+
+
 class TestSchemaCardBehavior:
     def test_no_mid_run_card_field_and_reflects_at_instance_end(self):
         system = SchemaCardSystem(model="gpt-5", provider_mode="litellm_chat")
@@ -102,21 +139,79 @@ class TestSchemaCardBehavior:
             assert any(m["role"] == "system" for m in reflect_messages)
 
         assert system.schema_cards == [
-            "g2.prc is cents; use COALESCE(prc_usd, prc/100)"
+            SchemaCardEntry(
+                content="g2.prc is cents; use COALESCE(prc_usd, prc/100)",
+                confidence=1,
+            )
         ]
         assert system.reflection_count == 1
         assert system.messages == []
+        assert "Do NOT rediscover" in system.system_prompt
 
         messages = _capture_messages(system, _make_query("Q2"))
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
         assert MEMORY_HEADER in messages[1]["content"]
+        assert TRUST_CARDS_REMINDER in messages[1]["content"]
+        assert "confidence: 1" in messages[1]["content"]
         assert "g2.prc is cents" in messages[1]["content"]
+
+    def test_correct_feedback_upvotes_surviving_cards(self):
+        system = SchemaCardSystem(model="gpt-5", provider_mode="litellm_chat")
+        system.reset()
+        system.schema_cards = [
+            SchemaCardEntry(content="g1 is Office Products", confidence=2)
+        ]
+        system._episode = [
+            {"role": "user", "content": "Q"},
+            {"role": "assistant", "content": "{}"},
+        ]
+        notebook = SchemaCardNotebook(
+            schema_cards=["g1 is Office Products", "fdbk_g1.ts is ms"],
+            change_summary="kept office mapping; added ts unit",
+        )
+        with patch(
+            "src.systems.schema_card.system.completion_with_structured_output",
+            return_value=(notebook, _dummy_usage()),
+        ):
+            system.observe(_make_observation("CORRECT! Your answer: 3"))
+        assert system.schema_cards == [
+            SchemaCardEntry(content="g1 is Office Products", confidence=3),
+            SchemaCardEntry(content="fdbk_g1.ts is ms", confidence=1),
+        ]
+        assert system.card_snapshots[-1]["feedback_correct"] is True
+
+    def test_incorrect_feedback_does_not_upvote(self):
+        system = SchemaCardSystem(model="gpt-5", provider_mode="litellm_chat")
+        system.reset()
+        system.schema_cards = [
+            SchemaCardEntry(content="g1 is Office Products", confidence=2)
+        ]
+        system._episode = [
+            {"role": "user", "content": "Q"},
+            {"role": "assistant", "content": "{}"},
+        ]
+        notebook = SchemaCardNotebook(
+            schema_cards=["g1 is Office Products"],
+            change_summary="unchanged",
+        )
+        with patch(
+            "src.systems.schema_card.system.completion_with_structured_output",
+            return_value=(notebook, _dummy_usage()),
+        ):
+            system.observe(_make_observation("INCORRECT. Correct answer: 1"))
+        assert system.schema_cards == [
+            SchemaCardEntry(content="g1 is Office Products", confidence=2)
+        ]
+        assert system.card_snapshots[-1]["feedback_correct"] is False
 
     def test_reflector_can_remove_cards(self):
         system = SchemaCardSystem(model="gpt-5", provider_mode="litellm_chat")
         system.reset()
-        system.schema_cards = ["g1 is Electronics", "g1 is Office Products"]
+        system.schema_cards = [
+            SchemaCardEntry(content="g1 is Electronics", confidence=1),
+            SchemaCardEntry(content="g1 is Office Products", confidence=3),
+        ]
         system._episode = [
             {"role": "user", "content": "Q"},
             {"role": "assistant", "content": "{}"},
@@ -130,7 +225,9 @@ class TestSchemaCardBehavior:
             return_value=(notebook, _dummy_usage()),
         ):
             system.observe(_make_observation("INCORRECT. Correct answer: 1"))
-        assert system.schema_cards == ["g1 is Office Products"]
+        assert system.schema_cards == [
+            SchemaCardEntry(content="g1 is Office Products", confidence=3)
+        ]
 
     def test_stateless_skips_cards_and_reflection(self):
         system = SchemaCardSystem(
@@ -159,7 +256,7 @@ class TestSchemaCardBehavior:
     def test_drift_drops_cards_by_default(self):
         system = SchemaCardSystem(model="gpt-5", provider_mode="litellm_chat")
         system.reset()
-        system.schema_cards = ["old table map"]
+        system.schema_cards = [SchemaCardEntry(content="old table map", confidence=5)]
         system._at_instance_boundary = True
 
         messages = _capture_messages(
@@ -178,7 +275,7 @@ class TestSchemaCardBehavior:
             drop_stale_cards=False,
         )
         system.reset()
-        system.schema_cards = ["old table map"]
+        system.schema_cards = [SchemaCardEntry(content="old table map", confidence=5)]
         system._at_instance_boundary = True
 
         messages = _capture_messages(
@@ -187,20 +284,26 @@ class TestSchemaCardBehavior:
         assert system.cards_stale is True
         assert STALE_CARDS_WARNING in messages[1]["content"]
         assert "old table map" in messages[1]["content"]
+        assert "confidence: 5" in messages[1]["content"]
 
     def test_artifacts_written_to_disk(self):
         system = SchemaCardSystem(model="gpt-5", provider_mode="litellm_chat")
-        system.schema_cards = ["card one", "card two"]
+        system.schema_cards = [
+            SchemaCardEntry(content="card one", confidence=2),
+            SchemaCardEntry(content="card two", confidence=0),
+        ]
         system.card_snapshots = [
             {
                 "reflection_index": 1,
                 "prior_cards": [],
-                "schema_cards": ["card one"],
+                "schema_cards": [{"content": "card one", "confidence": 1}],
                 "change_summary": "init",
+                "feedback_correct": True,
             }
         ]
         artifacts = system.get_run_artifacts()
         assert artifacts["artifact_type"] == "schema_card"
+        assert artifacts["schema_cards"][0]["confidence"] == 2
 
         with TemporaryDirectory() as tmp:
             trace_path = Path(tmp) / "run.json"
@@ -208,7 +311,9 @@ class TestSchemaCardBehavior:
             out = save_artifacts(artifacts, trace_path)
             assert out is not None
             assert (out / "schema_cards.md").exists()
-            assert (out / "schema_cards" / "card_0001.md").read_text(
+            card_text = (out / "schema_cards" / "card_0001.md").read_text(
                 encoding="utf-8"
-            ) == "card one"
+            )
+            assert "confidence: 2" in card_text
+            assert "card one" in card_text
             assert (out / "reflections" / "reflection_0001.json").exists()
