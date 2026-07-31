@@ -16,9 +16,10 @@ learned earlier in the run.
 - **Drift NOTICE** (database_exploration): clear cards by default so reflection
   rebuilds from scratch. Keep+mark-stale with `--system.drop-stale-cards false`.
 - **`reflection_prompt`**: generic default in code; override via
-  `--system.reflection-prompt` or config `system.params.reflection_prompt` for
-  task-tuned A/B. See [notes.md](notes.md) for the archived database_exploration
-  prompt and experiment guidance.
+  `--system.reflection-prompt` or config `system.params.reflection_prompt`
+  when a task needs a tuned storage policy (BSM transmitter registry; cohort
+  studies population registry). See [notes.md](notes.md) for hypotheses and
+  experiment notes.
 - **Artifacts**: final cards + per-reflection snapshots under `artifacts/<trace>/`.
 
 ## Run
@@ -30,11 +31,15 @@ clbench run database_exploration --system knowledge_cards --schedule default \
   --system.model <model> --runs 1
 ```
 
-Task-tuned reflection prompt (BSM transmitter registry example):
+Task-tuned reflection prompts:
 
 ```bash
 clbench run --config configs/blind_spectrum_monitoring/bsm_mixed_grid_knowledge_cards.json
+uv run clbench run --config configs/cohort_studies/cohort_studies_knowledge_cards.json
 ```
+
+The cohort config pins `system.params.model`, `task.params.schedule`,
+`runs`, and the population-registry `reflection_prompt`.
 
 Configs are only loaded when passed with `--config`; they are not auto-selected
 by task name. On exploitable poker, the default reflection prompt has been

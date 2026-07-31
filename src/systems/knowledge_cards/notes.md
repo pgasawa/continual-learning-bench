@@ -29,27 +29,12 @@ cards, and asks the reflector to merge conflicts and drop weak one-offs.
 Task-tuned prompts (e.g. BSM transmitter registry) fully replace the default
 via `reflection_prompt` / `--system.reflection-prompt`.
 
-### Suggested A/B
-
-1. **Default** (generic prompt in code):
-
-   ```bash
-   clbench run database_exploration --system knowledge_cards --system.model <model>
-   ```
-
-2. **Custom** (paste a task-tuned prompt via ctor / CLI / config):
-
-   ```bash
-   clbench run database_exploration --system knowledge_cards \
-     --system.model <model> \
-     --system.reflection-prompt "$(cat path/to/prompt.txt)"
-   ```
-
-   Or put `reflection_prompt` under `system.params` in a JSON `--config` file.
-   Configs are not auto-loaded.
-
-Compare scores. A large gap suggests the reflection prompt (and thus storage
-policy) matters a lot for that task.
+Poker and database exploration use the default reflection prompt. Committed
+task-tuned overrides:
+- BSM (`configs/blind_spectrum_monitoring/bsm_mixed_grid_knowledge_cards.json`)
+- Cohort studies
+  (`configs/cohort_studies/cohort_studies_knowledge_cards.json`; prompt source
+  `configs/cohort_studies/prompts/population_registry.txt`)
 
 ## Hypotheses (verify with knowledge_cards runs)
 
@@ -75,20 +60,24 @@ before calling H1 false for poker.
 (same model), because cards compress durable state instead of relying only on
 raw dialogue history.
 
-**Status (early):** Promising on the first tasks tried (early KC runs looked
-better than ICL). Not confirmed until full runs on the three planned tasks
-with matched models and enough seeds. Poker may be an exception until the
-horizon is long enough (see H1).
+**Status:** Supported on BSM with a matched model (run still ongoing at time
+of writing): same-model ICL underperforms the tuned KC registry setup.
+Stronger official ICL numbers elsewhere are largely a **model** effect, not
+evidence that ICL beats KC. Still confirm on the other planned tasks with
+matched models / full seeds; poker may remain an exception until the horizon
+is long enough (see H1).
 
 ### H3 — Reflection prompt matters
 
 **Claim:** What the reflector is told to capture (and forbid) materially
 changes learning. Default vs task-tuned prompts are not interchangeable.
 
-**Status (early):** Strongly supported on BSM. Default reflection produced
-schema/strategy cards only → flat ~0.22 IoU, no learning. Task-tuned
-transmitter-registry prompt → ~0.50 mean IoU and clear learning Δ. Storage
-policy is part of the method; tune per task via `reflection_prompt`.
+**Status:** Supported by BSM alone — no further DB-exploration custom prompt
+needed to establish this. Default reflection → schema/strategy cards only,
+flat ~0.22 IoU. Task-tuned transmitter-registry prompt → ~0.50 mean IoU and
+clear learning Δ. Cohort studies showed the same failure mode under default
+reflection (schema + in-sample CASE/KL cards); population-registry override is
+in-repo for the A/B. Use default elsewhere unless a task shows this pattern.
 
 ### H4 — Stronger models learn better (with KC)
 
@@ -96,17 +85,18 @@ policy is part of the method; tune per task via `reflection_prompt`.
 learning curves; weaker models still learn when the memory content is right,
 but plateau lower.
 
-**Status (early):** Directionally consistent (e.g. stronger ICL/official
-models above weaker same-setup KC). Learning is present even on weaker
-models once cards store the right state — capacity modulates the ceiling,
-not whether reflection can help at all. Verify with same-task KC sweeps
-across model tiers.
+**Status:** Reinforced by the BSM ICL comparison: official/high-model ICL
+looks strong mainly because the model is stronger, not because ICL dominates
+KC. Same weaker model + tuned KC already beats same-model ICL on BSM.
+Learning still appears on weaker models when cards store the right state —
+capacity modulates the ceiling. Verify with same-task KC sweeps across model
+tiers.
 
 ### Verification plan
 
 - Run knowledge_cards on the chosen tasks with matched baselines (ICL,
   stateless KC) and matched models.
-- A/B default vs task `reflection_prompt` where H3 is in doubt.
+- H3 treated as established via BSM; no DB custom-prompt A/B required.
 - Prefer multi-seed / full schedules before locking H1–H2; treat short poker
   runs as under-powered for opponent modeling.
 
@@ -115,25 +105,3 @@ across model tiers.
 The string `NOTICE: The live database schema or contents may have changed`
 remains a hard-coded trigger for clearing or marking cards STALE. Only
 `database_exploration` emits it today; other tasks are unaffected.
-
-## Archived database_exploration reflection_prompt
-
-The former schema-card reflector prompt, kept for later A/B against the
-generic default. Pass it as `--system.reflection-prompt` or
-`system.params.reflection_prompt` in a run config.
-
-```
-You maintain a notebook of durable schema cards for a SQLite database agent.
-Given the prior cards and one completed episode (SQL, results, feedback),
-produce a FULL replacement notebook.
-
-Rules:
-- Keep only durable environment facts: tables/columns, types, encodings (cents vs dollars, timestamp units), joins, group identities, missing tables, migration/legacy/soft-delete notes.
-- Do NOT store questions, SQL text, result row dumps, submitted/correct answers, or ephemeral plans.
-- You may add, edit, merge, or remove cards. Newer episode evidence overrides older cards when they conflict. Prefer fewer, consistent cards.
-- If feedback shows an incorrect answer caused by a bad schema assumption, fix or remove that assumption.
-- If cards were stale after a migration, rewrite them from episode evidence.
-- Confidence scores are maintained outside this step; return card text only.
-
-Write slightly longer, more complete cards than a one-line gloss. For each durable fact, include enough detail that a later agent can apply it without re-deriving it: what the fact is, when it applies, related columns/keys that play the same role (if any), coverage or sparsity if you observed it, and common misuses to avoid. Prefer one thorough card over several thin ones when they describe the same area. Do not invent measurements you did not see in the episode or prior cards; if coverage is unknown, say so briefly.
-```
