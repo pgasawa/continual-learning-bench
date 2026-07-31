@@ -23,7 +23,7 @@ class RegistryDiscoveryTests(unittest.TestCase):
         self.assertIn("human", systems)
         self.assertIn("icl", systems)
         self.assertIn("icl_notepad", systems)
-        self.assertIn("schema_card", systems)
+        self.assertIn("knowledge_cards", systems)
 
     def test_get_task_class_imports_discovered_module(self):
         self.assertEqual(get_task_class("exploitable_poker").__name__, "Poker")

@@ -1,0 +1,90 @@
+You maintain a notebook of durable TRANSMITTER REGISTRY cards for a blind
+spectrum monitoring agent. The agent sees one noisy scan at a time; dialogue
+is cleared between scans, so these cards are the ONLY memory of the band.
+Cards are injected as trusted memory on later scans.
+
+Given the prior cards and one completed scan episode (detected peaks, the
+agent's transmitter report, and terminal feedback), produce a FULL replacement
+notebook.
+
+## Domain facts (use these; do not rediscover them)
+- Goal: report the persistent long-run occupancy map — ALL transmitters believed
+  to exist — not only peaks visible in the current scan.
+- Scoring cares about center_freq and bandwidth (occupied intervals). Fields
+  currently_active and estimated_power are useful for tracking but do not
+  change the IoU score.
+- Peaks are noisy: frequency, width, and power jitter; misses and false alarms
+  happen. Recurrence across scans is stronger evidence than a single peak.
+- Temporary silence is common. Absence in one scan is NOT proof a transmitter
+  does not exist. Keep supported transmitters with currently_active=false when
+  they are not seen this scan.
+- Terminal feedback is only an acknowledgment like "Scan N recorded." It does
+  NOT say whether the report was correct. Learn only from peaks + the agent's
+  report + prior cards. Never invent ground-truth labels from feedback.
+
+## What to RECORD (required)
+Prefer ONE primary card titled "Transmitter Registry:" that lists every
+credible persistent transmitter. You may add a second short card for band-wide
+structure (e.g. suspected regular spacing / wide vs narrow classes) ONLY if
+supported by repeated evidence across multiple scans.
+
+Start the registry card with:
+- "Use when: every scan — emit the FULL registry below as transmitters[]; mark
+  entries matching current peaks currently_active=true, all others false."
+Then list entries. The acting agent must be able to copy the registry into a
+complete transmitters[] report without dropping carried-forward entries.
+
+For EACH transmitter entry include enough detail to re-emit it later:
+- center_freq (MHz) and bandwidth (MHz) — best current estimates
+- estimated_power (dBm) when known
+- hit_count / times_seen vs scans_observed (or equivalent coverage note)
+- last_seen_scan if available from the episode
+- status: active_this_scan | inactive_carried | candidate_unconfirmed
+- merge notes: if nearby peaks were merged or split, say why briefly
+
+Update rules for the registry:
+1. Match current peaks to existing entries (nearby center + similar width).
+2. Update matched entries' parameters with a stable running estimate; bump hits.
+3. Carry forward unmatched but previously supported entries as inactive_carried.
+4. Add new entries for strong unmatched peaks (mark candidate_unconfirmed until
+   they recur).
+5. Prune false alarms aggressively: drop candidates with hit_count <= 2 that
+   have not been seen in recent scans and do not fit a promoted structure
+   pattern. Merge near-duplicate centers of the same bandwidth class into one
+   entry. Prefer stable bandwidths that recur (often ~wide vs ~narrow classes
+   when evidence supports them); demote tiny one-off widths.
+6. Soft-cap the registry near ~15–16 entries: when over the cap, merge or prune
+   weakest candidates before adding new ones. Prefer a clean map over an
+   exhaustive list of noise.
+7. Newer episode evidence overrides older conflicting parameters for the SAME
+   transmitter. Do not invent transmitters, spacings, or measurements absent
+   from the episode and prior cards.
+
+If you add a structure card, start it with "Use when:" (e.g. when inferring
+missing grid members or classifying wide vs narrow). Only include spacing or
+class claims supported by repeated evidence.
+
+## What NOT to RECORD (forbidden)
+- Response JSON schema / field-name reminders (the task already provides schema).
+- Generic strategy slogans ("maintain a persistent map", "carry forward inactive
+  transmitters", "prefer persistence") without concrete frequency/bandwidth
+  entries.
+- Full raw peak dumps or full action transcripts as the card body.
+- Claims that feedback graded the answer CORRECT/INCORRECT (it never does).
+- Invented transmitters padded to look complete when evidence is thin — mark
+  coverage unknown instead.
+- Ephemeral per-scan plans that do not update the durable registry.
+
+## Card hygiene
+- Prefer 1–2 cards total. The registry card is mandatory once any credible
+  transmitter exists.
+- Resolve conflicts in this step: merge duplicates, rewrite stale parameters,
+  remove pruned candidates from the replacement notebook.
+- Write the registry as clearly delimited entries (not a vague essay).
+- If the episode adds nothing new, return prior cards unchanged and say so in
+  change_summary.
+- If prior cards were only schema/strategy text with no numeric registry,
+  REPLACE them with a real registry built from this episode's peaks/report.
+
+Return knowledge_cards as an array of strings (each card a compact paragraph or
+structured registry text) and a short change_summary.

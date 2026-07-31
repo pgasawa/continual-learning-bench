@@ -1,4 +1,4 @@
-"""Schema-card artifact export helpers."""
+"""Knowledge-card artifact export helpers."""
 
 from __future__ import annotations
 
@@ -15,20 +15,11 @@ def _card_content(card: Any) -> str:
     return str(card).strip()
 
 
-def _card_confidence(card: Any) -> int:
-    if isinstance(card, dict):
-        try:
-            return max(0, int(card.get("confidence") or 0))
-        except (TypeError, ValueError):
-            return 0
-    return 0
-
-
-def _build_schema_card_manifest(artifacts: dict[str, Any]) -> dict[str, Any]:
-    cards = list(artifacts.get("schema_cards") or [])
+def _build_knowledge_cards_manifest(artifacts: dict[str, Any]) -> dict[str, Any]:
+    cards = list(artifacts.get("knowledge_cards") or [])
     return {
-        "type": "schema_card",
-        "schema_card_count": len(cards),
+        "type": "knowledge_cards",
+        "knowledge_card_count": len(cards),
         "cards_stale": bool(artifacts.get("cards_stale", False)),
         "drop_stale_cards": bool(artifacts.get("drop_stale_cards", False)),
         "stateless": bool(artifacts.get("stateless", False)),
@@ -36,29 +27,25 @@ def _build_schema_card_manifest(artifacts: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _save_schema_card_artifacts(
+def _save_knowledge_cards_artifacts(
     artifacts: dict[str, Any],
     trace_path: Path,
 ) -> Optional[Path]:
     artifact_dir = trace_path.parent / "artifacts" / trace_path.stem
-    cards_dir = artifact_dir / "schema_cards"
+    cards_dir = artifact_dir / "knowledge_cards"
     cards_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_cards = list(artifacts.get("schema_cards") or [])
+    raw_cards = list(artifacts.get("knowledge_cards") or [])
     card_paths: list[str] = []
     combined_parts: list[str] = []
     for index, card in enumerate(raw_cards, start=1):
         content = _card_content(card)
-        confidence = _card_confidence(card)
         filename = f"card_{index:04d}.md"
-        body = f"confidence: {confidence}\n\n{content}"
-        (cards_dir / filename).write_text(body, encoding="utf-8")
-        card_paths.append(f"schema_cards/{filename}")
-        combined_parts.append(
-            f"## Schema card {index} (confidence: {confidence})\n\n{content}"
-        )
+        (cards_dir / filename).write_text(content, encoding="utf-8")
+        card_paths.append(f"knowledge_cards/{filename}")
+        combined_parts.append(f"## Knowledge card {index}\n\n{content}")
 
-    (artifact_dir / "schema_cards.md").write_text(
+    (artifact_dir / "knowledge_cards.md").write_text(
         "\n\n---\n\n".join(combined_parts),
         encoding="utf-8",
     )
@@ -78,10 +65,10 @@ def _save_schema_card_artifacts(
             snapshot_paths.append(f"reflections/{filename}")
 
     manifest = {
-        "artifact_type": "schema_card",
+        "artifact_type": "knowledge_cards",
         "trace_file": str(trace_path),
-        "schema_cards_path": "schema_cards.md",
-        "schema_card_paths": card_paths,
+        "knowledge_cards_path": "knowledge_cards.md",
+        "knowledge_card_paths": card_paths,
         "cards_stale": bool(artifacts.get("cards_stale", False)),
         "drop_stale_cards": bool(artifacts.get("drop_stale_cards", False)),
         "stateless": bool(artifacts.get("stateless", False)),
@@ -102,7 +89,7 @@ def _save_schema_card_artifacts(
 
 def ensure_registered() -> None:
     register_artifact_exporter(
-        "schema_card",
-        build_manifest=_build_schema_card_manifest,
-        save=_save_schema_card_artifacts,
+        "knowledge_cards",
+        build_manifest=_build_knowledge_cards_manifest,
+        save=_save_knowledge_cards_artifacts,
     )
