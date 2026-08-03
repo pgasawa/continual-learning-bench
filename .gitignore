@@ -23,6 +23,7 @@ data/database_exploration/QUESTION_REVIEW.md
 data/database_exploration/QUIRKS_REPORT.md
 data/database_exploration/QUIRKS_REPORT.json
 scratchpad/
+src/systems/knowledge_cards/notes.md
 *.egg-info/
 tmp/
 .pi

@@ -18,8 +18,7 @@ learned earlier in the run.
 - **`reflection_prompt`**: generic default in code; override via
   `--system.reflection-prompt` or config `system.params.reflection_prompt`
   when a task needs a tuned storage policy (BSM transmitter registry; cohort
-  studies population registry; poker per-opponent card storage). See
-  [notes.md](notes.md) for hypotheses and experiment notes.
+  studies population registry; poker per-opponent card storage).
 - **Artifacts**: final cards + per-reflection snapshots under `artifacts/<trace>/`.
 
 ## Run
