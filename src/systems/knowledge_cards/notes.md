@@ -29,12 +29,16 @@ cards, and asks the reflector to merge conflicts and drop weak one-offs.
 Task-tuned prompts (e.g. BSM transmitter registry) fully replace the default
 via `reflection_prompt` / `--system.reflection-prompt`.
 
-Poker and database exploration use the default reflection prompt. Committed
-task-tuned overrides:
+Database exploration uses the default reflection prompt. Committed task-tuned
+overrides:
 - BSM (`configs/blind_spectrum_monitoring/bsm_mixed_grid_knowledge_cards.json`)
 - Cohort studies
   (`configs/cohort_studies/cohort_studies_knowledge_cards.json`; prompt source
   `configs/cohort_studies/prompts/population_registry.txt`)
+- Exploitable poker
+  (`configs/exploitable_poker/exploitable_poker_knowledge_cards.json`; prompt
+  source `configs/exploitable_poker/prompts/opponent_card_storage.txt`) —
+  storage-only: one card per named opponent, no archetype/strategy hints
 
 ## Hypotheses (verify with knowledge_cards runs)
 

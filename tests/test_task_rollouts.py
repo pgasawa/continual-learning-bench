@@ -13,7 +13,14 @@ class TaskRolloutTests(unittest.TestCase):
         schedules = list_task_schedules("exploitable_poker")
         self.assertEqual(
             [schedule.id for schedule in schedules],
-            ["calling_station_then_fit_or_fold", "default", "quick_test"],
+            [
+                "calling_station_only",
+                "calling_station_then_fit_or_fold",
+                "default",
+                "fit_or_fold_only",
+                "loose_aggressive_only",
+                "quick_test",
+            ],
         )
 
     def test_bsm_rollout_reset_rebinds_first_stage(self):
