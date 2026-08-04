@@ -265,6 +265,43 @@ class TestValidateWithCoercion:
         with pytest.raises(Exception):
             validate_with_coercion(raw, SimpleSchema)
 
+    def test_recovers_raw_newlines_inside_string_values(self):
+        """Gemini/sales_prediction failure: multiline bash/python in ``command``
+        with literal newlines (and tabs) inside the JSON string. JSON forbids
+        raw U+0000–U+001F in strings; Pydantic raises ``json_invalid`` /
+        control-character errors and the old fallbacks could not repair it.
+        """
+
+        class BashCommandSchema(BaseModel):
+            thought: str
+            command: str
+
+        # Deliberately invalid JSON: raw newline + tab inside "command".
+        raw = (
+            '{"thought": "Write a python script.",'
+            ' "command": "python - <<\'PY\'\n'
+            "import json\n"
+            "print(target_items)\n"
+            'PY"}'
+        )
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(raw)
+        result = validate_with_coercion(raw, BashCommandSchema)
+        assert result.thought.startswith("Write a python")
+        assert "print(target_items)" in result.command
+        assert "\n" in result.command
+
+    def test_valid_escaped_newlines_unchanged(self):
+        """Proper ``\\n`` escapes must still round-trip (no double-escaping)."""
+
+        class BashCommandSchema(BaseModel):
+            thought: str
+            command: str
+
+        raw = json.dumps({"thought": "ok", "command": "python -c 'print(1)\nprint(2)'"})
+        result = validate_with_coercion(raw, BashCommandSchema)
+        assert result.command == "python -c 'print(1)\nprint(2)'"
+
 
 class FakeFunction:
     def __init__(self, arguments: str | dict):

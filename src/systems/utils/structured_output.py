@@ -571,22 +571,25 @@ def _parse_with_fallbacks(
        leading/trailing prose).
     3. ``decode_first_json_object`` (tolerates trailing JSON / text after
        a complete object).
-    4. Same as (3) after sanitising invalid backslash escapes.
+    4. Same as (3) after repairing LLM JSON (raw control chars inside
+       strings + invalid backslash escapes).
     5. ``_scan_for_embedded_object`` — schema-aware scan that walks every
        ``{`` and returns the first dict mentioning any expected field
        (e.g. for stringified-payload wrappers like ``{"thought": "<JSON>"}``
-       where the outer string is malformed).
+       where the outer string is malformed), on both raw and repaired text.
 
     If every strategy raises, the last error is re-raised so callers see
     the most informative traceback.
     """
     extracted = extract_json(json_str)
+    repaired = _sanitize_invalid_escapes(_sanitize_unescaped_controls(extracted))
     strategies: list[Callable[[], Any]] = [
         lambda: json.loads(json_str),
         lambda: json.loads(extracted),
         lambda: decode_first_json_object(extracted),
-        lambda: decode_first_json_object(_sanitize_invalid_escapes(extracted)),
+        lambda: decode_first_json_object(repaired),
         lambda: _scan_or_raise(extracted, schema),
+        lambda: _scan_or_raise(repaired, schema),
     ]
     last_error: Exception | None = None
     for strategy in strategies:
@@ -709,6 +712,45 @@ def _scan_for_embedded_object(
 # Valid single-char escapes: " \ / b f n r t
 # Valid multi-char escape:   uXXXX (handled by excluding 'u' from the pattern)
 _INVALID_ESCAPE_RE = re.compile(r'\\([^"\\/bfnrtu])')
+
+_CONTROL_ESCAPE = {
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+}
+
+
+def _sanitize_unescaped_controls(text: str) -> str:
+    """Escape raw U+0000–U+001F characters inside JSON string literals.
+
+    Models often put multiline shell/python in a ``command`` field with
+    literal newlines instead of ``\\n``. JSON forbids raw controls in
+    strings; this walk repairs them without touching structural whitespace
+    outside strings, and without disturbing already-valid ``\\n`` escapes.
+    """
+    out: list[str] = []
+    in_string = False
+    escape = False
+    for ch in text:
+        if escape:
+            out.append(ch)
+            escape = False
+            continue
+        if in_string and ch == "\\":
+            out.append(ch)
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            out.append(ch)
+            continue
+        if in_string and ord(ch) < 0x20:
+            out.append(_CONTROL_ESCAPE.get(ch, f"\\u{ord(ch):04x}"))
+            continue
+        out.append(ch)
+    return "".join(out)
 
 
 def _sanitize_invalid_escapes(text: str) -> str:
