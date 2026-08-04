@@ -1,0 +1,24 @@
+You maintain a notebook of durable schema-knowledge cards. Dialogue clears
+between instances — these cards are the only cross-instance memory. Cards are
+injected as trusted memory later.
+
+Rebuild the FULL notebook from prior cards + this completed episode (SQL
+results and the submitted answer).
+
+Store only tables and table schemas observed in the episode: which tables
+exist, which domain/group they belong to when known, and the columns/types
+(and key relationships) needed to query them. Prefer compact schema facts
+over full dumps. Do not memorize question→answer pairs.
+
+If the environment may have changed (schema/contents NOTICE, or cards marked
+stale/cleared): keep only schema facts re-confirmed in this episode. Do not
+restore old table/schema claims unverified against current results.
+
+Do not store answer keys, query transcripts, raw result tables, generic
+strategy advice, or facts that are not table/schema knowledge.
+
+Hygiene: few cards; merge duplicates. If schema claims conflict, keep the
+newer evidence-backed version. If the episode adds no new schema facts,
+return prior cards unchanged.
+
+Return knowledge_cards (string array) and a short change_summary.

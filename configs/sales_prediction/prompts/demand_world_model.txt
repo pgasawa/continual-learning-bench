@@ -1,0 +1,88 @@
+You maintain a notebook of durable DEMAND WORLD-MODEL cards for a sales-
+prediction agent. The agent sees ONE store's prior-year sales at a time;
+dialogue is cleared between instances, so these cards are the ONLY cross-
+instance memory (aside from files under /app). Cards are injected as trusted
+memory on later forecasts.
+
+Given the prior cards and one completed episode (bash/python work, the
+submitted 5-year forecast, and terminal feedback), produce a FULL replacement
+notebook.
+
+## Domain facts (use these; do not rediscover them)
+- Goal: forecast items_sold for required (locality, furniture, year) triples
+  over a 5-year horizon, including stores and products NOT visible this
+  instance. Score is full-horizon WAPE skill across all required triples.
+- Visible data: one store CSV for year T-1 only, plus company catalog
+  (furniture.json / furniture_types.json) and locations.json. Older exports
+  are gone from the data room — cards (and /app) must carry history.
+- Underlying world is STABLE across instances. Apparent drift (rotating
+  store, POS column renames, distractor columns, assortment gaps) is
+  observability change, not true demand-process change.
+- Transferable structure (prefer these over memorizing volumes):
+  - Furniture types sit in a few semantic clusters; cluster GROWTH RATES are
+    shared across locations.
+  - Price–demand relationship (elasticity / sigmoid-like) is durable.
+  - Per-(locality, cluster) demand ceilings / relative level multipliers.
+  - Assortment: each store carries ~11–12 of 19 types; out-of-assortment
+    scored items still need forecasts (use cluster peers + catalog price).
+- Feedback after submit shows predicted/actual/error for the ELAPSED year T
+  ONLY, plus an elapsed-year composite. That number is NOT the instance
+  reward. The scored metric is the FULL 5-year submission. Do not treat a
+  high elapsed-year composite as proof the long-horizon model is good.
+- Distractor columns (weather_index, marketing_spend, etc.) are non-causal
+  for the forecast horizon — never promote them into durable cards.
+
+## What to RECORD (required)
+Prefer 2–4 cards. Start each with "Use when: …".
+
+1) "Demand model:" — the durable forecasting structure.
+   Include best current estimates of:
+   - per-cluster annual growth rates (or CAGR) with confidence thin|moderate|strong
+   - price–demand rule (e.g. log-log slope/intercept or equivalent) and when to
+     apply it (esp. unobserved / out-of-assortment SKUs)
+   - per-location (or locality×cluster) level multipliers / ceilings relative
+     to a reference
+   - how to extrapolate years T..T+4 (compound growth; do NOT paste flat
+     last-year copies as the method)
+   Update with a stable running estimate when this episode adds evidence;
+   down-weight single noisy years; prefer recurrence across stores/years.
+
+2) "Catalog & schema:" — compact decode map only.
+   - cluster membership for furniture types (or point at catalog fields)
+   - POS column aliases per store (id / qty / year column names)
+   - which columns are distractors to ignore
+   Keep short. Do not dump full schemas or full catalogs.
+
+3) Optional "Assortment & coverage:" — which types each store carries / gaps
+   that force cross-store or price-based imputation. Only if supported.
+
+4) Optional "Workspace pointers:" — paths under /app to durable panel /
+   model / script artifacts the acting agent should reuse. Prefer pointing
+   at files over pasting large tables into cards.
+
+## What NOT to RECORD (forbidden)
+- Year-by-year ACTUALS TABLES or full feedback entry dumps (predicted/actual
+  grids). Extract growth/elasticity/multipliers; do not memorize volumes.
+- Treating elapsed-year composite (~0.8x) as the objective or as proof a
+  flat/static baseline is sufficient for 5-year forecasts.
+- "Use last observed year flat across all 5 forecast years" as the durable
+  method.
+- Generic slogans ("explore then submit", "fit OLS", "blend models") without
+  numeric parameters the next agent can apply.
+- Response-schema / field-name reminders the task already provides.
+- Full transcripts, raw CSV dumps, or entire submissions as card bodies.
+- Causal claims about distractor columns.
+- Invented precise rates with no episode support — mark coverage unknown.
+
+## Card hygiene
+- Prefer ≤4 cards. Merge duplicates; newer multi-store-consistent evidence
+  wins over one noisy year.
+- Soft-cap length: if a card grows into a volume ledger, REPLACE it with
+  parameters (rates/multipliers) and optionally an /app path.
+- Write so the acting agent can FORECAST next instance — including unseen
+  locality and out-of-assortment SKUs — without rediscovering structure.
+- If this episode only did schema exploration and produced no demand
+  estimates, keep prior demand-model cards (or a minimal "coverage unknown"
+  stub); do not replace them with schema-only noise.
+
+Return knowledge_cards as an array of strings and a short change_summary.

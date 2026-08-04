@@ -97,6 +97,28 @@ _REFUSAL_RETRY_REMINDER = (
     "\n\nReminder: respond with valid JSON matching the requested schema. "
     "Keep your reasoning factual and on-task."
 )
+_SCHEMA_ECHO_RETRY_REMINDER = (
+    "\n\nYour previous response copied JSON Schema metadata "
+    "(keys like type, description, default, items, title, properties). "
+    "Those describe the format — they are not the answer. "
+    "Respond again with a JSON object of real DATA VALUES only."
+)
+_JSON_SCHEMA_META_KEYS = frozenset(
+    {
+        "type",
+        "description",
+        "default",
+        "items",
+        "title",
+        "properties",
+        "$defs",
+        "$ref",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "required",
+    }
+)
 
 
 class _EmptyContentError(Exception):
@@ -146,13 +168,101 @@ def _model_supports_response_format(model: str) -> bool:
         return False
 
 
+def _annotation_example(annotation: Any) -> Any:
+    """Build a tiny placeholder value for prompt examples."""
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if annotation is str:
+        return "example"
+    if annotation is int:
+        return 0
+    if annotation is float:
+        return 0.0
+    if annotation is bool:
+        return False
+    if origin is list:
+        item = _annotation_example(args[0]) if args else "example"
+        return [item]
+    if origin is dict:
+        return {"key": "value"}
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return example_values_for_schema(annotation)
+    if origin is not None:
+        # Optional/Union: prefer the first non-None arg.
+        for arg in args:
+            if arg is not type(None):
+                return _annotation_example(arg)
+    return "example"
+
+
+def example_values_for_schema(schema: type[BaseModel]) -> dict[str, Any]:
+    """Build an example data payload (values, not JSON Schema metadata)."""
+    extra = getattr(schema, "model_config", {}).get("json_schema_extra")
+    if isinstance(extra, dict):
+        examples = extra.get("examples")
+        if isinstance(examples, list) and examples and isinstance(examples[0], dict):
+            return dict(examples[0])
+
+    example: dict[str, Any] = {}
+    for name, field_info in schema.model_fields.items():
+        if field_info.examples:
+            example[name] = field_info.examples[0]
+            continue
+        if not field_info.is_required():
+            try:
+                example[name] = field_info.get_default(call_default_factory=True)
+                continue
+            except Exception:
+                pass
+        example[name] = _annotation_example(field_info.annotation)
+    return example
+
+
+def looks_like_json_schema_fragment(value: Any) -> bool:
+    """True when a value looks like a copied JSON Schema node, not data."""
+    if not isinstance(value, dict):
+        return False
+    keys = set(value.keys())
+    if "type" not in keys:
+        return False
+    return bool(keys & (_JSON_SCHEMA_META_KEYS - {"type"})) or keys == {"type"}
+
+
+def payload_looks_like_schema_echo(
+    data: Any,
+    schema: type[BaseModel],
+) -> bool:
+    """Detect responses that echoed JSON Schema property defs as field values."""
+    if not isinstance(data, dict):
+        return False
+    for name in schema.model_fields:
+        if name in data and looks_like_json_schema_fragment(data[name]):
+            return True
+    return False
+
+
 def schema_to_prompt_instruction(schema: type[BaseModel]) -> str:
-    """Convert a Pydantic model's JSON schema into a prompt instruction."""
+    """Convert a Pydantic model's JSON schema into a prompt instruction.
+
+    Includes a concrete value example. Some models (notably Gemini on the
+    prompt-based structured-output path) otherwise copy JSON Schema metadata
+    keys like ``type`` / ``description`` into the response as if they were
+    field values.
+    """
     json_schema = schema.model_json_schema()
+    example = example_values_for_schema(schema)
     return (
-        "\n\nYou MUST respond with valid JSON matching this schema exactly:\n"
-        f"```json\n{json.dumps(json_schema, indent=2)}\n```\n"
-        "Respond ONLY with the JSON object, no other text."
+        "\n\nYou MUST respond with a JSON object of DATA VALUES that satisfy "
+        "this schema.\n"
+        "The schema uses metadata keys (type, description, default, items, "
+        "title, properties). Those keys describe the format — do NOT copy them "
+        "into your response. Fill in real values (strings, arrays, numbers, "
+        "objects) instead.\n"
+        f"Schema:\n```json\n{json.dumps(json_schema, indent=2)}\n```\n"
+        "Example of a correctly shaped response (replace with your real "
+        "values):\n"
+        f"```json\n{json.dumps(example, indent=2)}\n```\n"
+        "Respond ONLY with the JSON object of values, no other text."
     )
 
 
@@ -269,6 +379,7 @@ def completion_with_structured_output(
         completion_kwargs = _prompt_based_kwargs(model, messages, response_schema)
 
     refusal_retry_used = False
+    schema_echo_retry_used = False
     for attempt in range(_MAX_RETRIES + 1):
         try:
             response = litellm.completion(**completion_kwargs)
@@ -276,27 +387,33 @@ def completion_with_structured_output(
             if content is None:
                 raise _EmptyContentError("LLM returned empty content")
 
-            if use_response_format:
-                return (
-                    validate_with_coercion(content, response_schema),
-                    build_usage_event_from_response(
-                        model=model,
-                        response=response,
-                        call_type="completion",
-                    ),
+            payload = content if use_response_format else extract_json(content)
+            if not schema_echo_retry_used and _content_is_schema_echo(
+                payload, response_schema
+            ):
+                schema_echo_retry_used = True
+                logger.warning(
+                    "Structured output looked like JSON Schema echo on %s; "
+                    "retrying once with value-only reminder",
+                    model,
                 )
-            else:
-                return (
-                    validate_with_coercion(
-                        extract_json(content),
-                        response_schema,
-                    ),
-                    build_usage_event_from_response(
-                        model=model,
-                        response=response,
-                        call_type="completion",
-                    ),
+                completion_kwargs = _append_user_reminder(
+                    completion_kwargs,
+                    _SCHEMA_ECHO_RETRY_REMINDER
+                    + "\nExample:\n"
+                    + json.dumps(example_values_for_schema(response_schema)),
                 )
+                time.sleep(1.0)
+                continue
+
+            return (
+                validate_with_coercion(payload, response_schema),
+                build_usage_event_from_response(
+                    model=model,
+                    response=response,
+                    call_type="completion",
+                ),
+            )
         except Exception as exc:
             refusal = as_provider_refusal(
                 exc,
@@ -310,21 +427,32 @@ def completion_with_structured_output(
                         "Provider refusal on %s; retrying once with benign reminder",
                         model,
                     )
-                    completion_kwargs = dict(completion_kwargs)
-                    perturbed_messages = [
-                        m.copy() for m in completion_kwargs.get("messages", [])
-                    ]
-                    for i in range(len(perturbed_messages) - 1, -1, -1):
-                        if perturbed_messages[i].get("role") == "user":
-                            perturbed_messages[i]["content"] = (
-                                str(perturbed_messages[i].get("content", ""))
-                                + _REFUSAL_RETRY_REMINDER
-                            )
-                            break
-                    completion_kwargs["messages"] = perturbed_messages
+                    completion_kwargs = _append_user_reminder(
+                        completion_kwargs,
+                        _REFUSAL_RETRY_REMINDER,
+                    )
                     time.sleep(1.0)
                     continue
                 raise refusal from exc
+            if (
+                isinstance(exc, ValidationError)
+                and not schema_echo_retry_used
+                and _validation_error_looks_like_schema_echo(exc)
+            ):
+                schema_echo_retry_used = True
+                logger.warning(
+                    "Validation failed with JSON Schema echo on %s; "
+                    "retrying once with value-only reminder",
+                    model,
+                )
+                completion_kwargs = _append_user_reminder(
+                    completion_kwargs,
+                    _SCHEMA_ECHO_RETRY_REMINDER
+                    + "\nExample:\n"
+                    + json.dumps(example_values_for_schema(response_schema)),
+                )
+                time.sleep(1.0)
+                continue
             if _is_grammar_too_large(exc) and use_response_format:
                 logger.warning(
                     "Grammar too large for response_format on %s; "
@@ -355,6 +483,36 @@ def completion_with_structured_output(
                 exc,
             )
             time.sleep(wait)
+
+
+def _append_user_reminder(completion_kwargs: dict, reminder: str) -> dict:
+    """Copy completion kwargs and append a reminder to the last user message."""
+    updated = dict(completion_kwargs)
+    perturbed_messages = [m.copy() for m in updated.get("messages", [])]
+    for i in range(len(perturbed_messages) - 1, -1, -1):
+        if perturbed_messages[i].get("role") == "user":
+            perturbed_messages[i]["content"] = (
+                str(perturbed_messages[i].get("content", "")) + reminder
+            )
+            break
+    updated["messages"] = perturbed_messages
+    return updated
+
+
+def _content_is_schema_echo(content: str, schema: type[BaseModel]) -> bool:
+    try:
+        data = json.loads(extract_json(content))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return False
+    return payload_looks_like_schema_echo(data, schema)
+
+
+def _validation_error_looks_like_schema_echo(exc: ValidationError) -> bool:
+    for err in exc.errors():
+        input_value = err.get("input")
+        if looks_like_json_schema_fragment(input_value):
+            return True
+    return False
 
 
 def maybe_unwrap_parameter_envelope(json_str: str) -> str:
@@ -413,22 +571,25 @@ def _parse_with_fallbacks(
        leading/trailing prose).
     3. ``decode_first_json_object`` (tolerates trailing JSON / text after
        a complete object).
-    4. Same as (3) after sanitising invalid backslash escapes.
+    4. Same as (3) after repairing LLM JSON (raw control chars inside
+       strings + invalid backslash escapes).
     5. ``_scan_for_embedded_object`` — schema-aware scan that walks every
        ``{`` and returns the first dict mentioning any expected field
        (e.g. for stringified-payload wrappers like ``{"thought": "<JSON>"}``
-       where the outer string is malformed).
+       where the outer string is malformed), on both raw and repaired text.
 
     If every strategy raises, the last error is re-raised so callers see
     the most informative traceback.
     """
     extracted = extract_json(json_str)
+    repaired = _sanitize_invalid_escapes(_sanitize_unescaped_controls(extracted))
     strategies: list[Callable[[], Any]] = [
         lambda: json.loads(json_str),
         lambda: json.loads(extracted),
         lambda: decode_first_json_object(extracted),
-        lambda: decode_first_json_object(_sanitize_invalid_escapes(extracted)),
+        lambda: decode_first_json_object(repaired),
         lambda: _scan_or_raise(extracted, schema),
+        lambda: _scan_or_raise(repaired, schema),
     ]
     last_error: Exception | None = None
     for strategy in strategies:
@@ -551,6 +712,45 @@ def _scan_for_embedded_object(
 # Valid single-char escapes: " \ / b f n r t
 # Valid multi-char escape:   uXXXX (handled by excluding 'u' from the pattern)
 _INVALID_ESCAPE_RE = re.compile(r'\\([^"\\/bfnrtu])')
+
+_CONTROL_ESCAPE = {
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+}
+
+
+def _sanitize_unescaped_controls(text: str) -> str:
+    """Escape raw U+0000–U+001F characters inside JSON string literals.
+
+    Models often put multiline shell/python in a ``command`` field with
+    literal newlines instead of ``\\n``. JSON forbids raw controls in
+    strings; this walk repairs them without touching structural whitespace
+    outside strings, and without disturbing already-valid ``\\n`` escapes.
+    """
+    out: list[str] = []
+    in_string = False
+    escape = False
+    for ch in text:
+        if escape:
+            out.append(ch)
+            escape = False
+            continue
+        if in_string and ch == "\\":
+            out.append(ch)
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            out.append(ch)
+            continue
+        if in_string and ord(ch) < 0x20:
+            out.append(_CONTROL_ESCAPE.get(ch, f"\\u{ord(ch):04x}"))
+            continue
+        out.append(ch)
+    return "".join(out)
 
 
 def _sanitize_invalid_escapes(text: str) -> str:

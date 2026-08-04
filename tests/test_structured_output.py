@@ -265,6 +265,43 @@ class TestValidateWithCoercion:
         with pytest.raises(Exception):
             validate_with_coercion(raw, SimpleSchema)
 
+    def test_recovers_raw_newlines_inside_string_values(self):
+        """Gemini/sales_prediction failure: multiline bash/python in ``command``
+        with literal newlines (and tabs) inside the JSON string. JSON forbids
+        raw U+0000–U+001F in strings; Pydantic raises ``json_invalid`` /
+        control-character errors and the old fallbacks could not repair it.
+        """
+
+        class BashCommandSchema(BaseModel):
+            thought: str
+            command: str
+
+        # Deliberately invalid JSON: raw newline + tab inside "command".
+        raw = (
+            '{"thought": "Write a python script.",'
+            ' "command": "python - <<\'PY\'\n'
+            "import json\n"
+            "print(target_items)\n"
+            'PY"}'
+        )
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(raw)
+        result = validate_with_coercion(raw, BashCommandSchema)
+        assert result.thought.startswith("Write a python")
+        assert "print(target_items)" in result.command
+        assert "\n" in result.command
+
+    def test_valid_escaped_newlines_unchanged(self):
+        """Proper ``\\n`` escapes must still round-trip (no double-escaping)."""
+
+        class BashCommandSchema(BaseModel):
+            thought: str
+            command: str
+
+        raw = json.dumps({"thought": "ok", "command": "python -c 'print(1)\nprint(2)'"})
+        result = validate_with_coercion(raw, BashCommandSchema)
+        assert result.command == "python -c 'print(1)\nprint(2)'"
+
 
 class FakeFunction:
     def __init__(self, arguments: str | dict):
@@ -608,3 +645,64 @@ class TestValidateWithCoercionParameterEnvelope:
         result = validate_with_coercion(wrapped, OptionalFieldSchema)
         assert result.name == "bar"
         assert result.score == 3.14
+
+
+class TestSchemaEchoHandling:
+    def test_prompt_instruction_includes_value_example(self):
+        text = structured_output.schema_to_prompt_instruction(SimpleSchema)
+        assert "DATA VALUES" in text
+        assert "do NOT copy" in text
+        assert '"name": "example"' in text
+        assert '"value": 0' in text
+
+    def test_detects_schema_property_echo(self):
+        echoed = {
+            "name": {"description": "Name", "type": "string"},
+            "value": {"description": "Value", "type": "integer"},
+        }
+        assert structured_output.payload_looks_like_schema_echo(echoed, SimpleSchema)
+        assert not structured_output.payload_looks_like_schema_echo(
+            {"name": "ok", "value": 1},
+            SimpleSchema,
+        )
+
+    def test_completion_retries_once_on_schema_echo(self, monkeypatch):
+        monkeypatch.setattr(
+            structured_output, "_model_supports_response_format", lambda _model: False
+        )
+        monkeypatch.setattr(
+            structured_output,
+            "build_usage_event_from_response",
+            lambda **kwargs: UsageEvent(call_type="completion", model="test-model"),
+        )
+        monkeypatch.setattr(structured_output.time, "sleep", lambda _seconds: None)
+
+        echo = json.dumps(
+            {
+                "answer": {
+                    "description": "The answer",
+                    "type": "string",
+                }
+            }
+        )
+        calls = {"count": 0, "messages": None}
+
+        def fake_completion(**kwargs):
+            calls["count"] += 1
+            calls["messages"] = kwargs.get("messages")
+            if calls["count"] == 1:
+                return FakeResponse(echo)
+            return FakeResponse('{"answer":"ok"}')
+
+        monkeypatch.setattr(structured_output.litellm, "completion", fake_completion)
+
+        parsed, _usage = completion_with_structured_output(
+            model="gemini/gemini-3.6-flash",
+            messages=[{"role": "user", "content": "reflect"}],
+            response_schema=RetryTestSchema,
+        )
+
+        assert parsed.answer == "ok"
+        assert calls["count"] == 2
+        user_content = calls["messages"][-1]["content"]
+        assert "JSON Schema metadata" in user_content
