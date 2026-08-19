@@ -86,6 +86,9 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["src*"]
 
+[tool.setuptools.package-data]
+"*" = ["**/*.json", "**/*.j2"]
+
 [dependency-groups]
 dev = [
     "pytest==9.0.2",
