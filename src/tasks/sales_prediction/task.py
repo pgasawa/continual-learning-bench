@@ -86,6 +86,12 @@ def _schedule_requires_frozen_corpus(schedule: str | None) -> bool:
     return schedule in _FROZEN_CORPUS_BY_SCHEDULE
 
 
+def _container_lost(output: str) -> bool:
+    """True when docker reports the sandbox container is gone."""
+    text = str(output or "")
+    return "No such container" in text or "is not running" in text
+
+
 class BashCommandResponse(BaseModel):
     """Structured response for sales prediction task."""
 
@@ -809,6 +815,12 @@ class SalesPredictionTask(ContinualLearningTask):
             timeout=120,
             pull_timeout=600,
             run_args=["--rm", "--network=none"],
+            # The library default is `sleep 2h`: the container silently exits and is
+            # removed mid-run, after which every command fails with "No such
+            # container" and the agent answers blind. Match the system workspace
+            # containers (systems/common.py), which sleep forever and are removed
+            # by the task's own cleanup.
+            container_timeout="infinity",
         )
         logger.info("Started sales prediction container (%s)", self.docker_image)
 
@@ -833,6 +845,17 @@ class SalesPredictionTask(ContinualLearningTask):
             result = self._env.execute({"command": command})  # type: ignore[attr-defined]
             output = result.get("output", "")
             rc = result.get("returncode", -1)
+            if rc != 0 and _container_lost(output):
+                # docker exec against a container that no longer exists surfaces as an
+                # ordinary failed command (rc=1), not as an exception. Recreate the
+                # sandbox, restore this instance's data room and retry once, so an
+                # infrastructure loss is not scored as an agent failure.
+                logger.warning("sales sandbox container lost; recreating and retrying once")
+                self._start_container()
+                self._push_data_room()
+                result = self._env.execute({"command": command})  # type: ignore[attr-defined]
+                output = result.get("output", "")
+                rc = result.get("returncode", -1)
             if rc != 0 and not output:
                 output = f"(exit code {rc})"
             return {"output": output, "returncode": rc, "exception_info": None}
