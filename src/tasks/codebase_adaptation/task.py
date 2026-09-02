@@ -721,6 +721,8 @@ class CodebaseAdaptationTask(ContinualLearningTask):
             cwd=instance_cwd(instance.raw_data),
             timeout=120,
             run_args=["--rm", "--network=none"],
+            # See sales_prediction: never let the sandbox expire under a running issue.
+            container_timeout="infinity",
         )
         logger.info(
             f"Started container for issue {self.current_issue_idx + 1}/{len(self.instances)}: "

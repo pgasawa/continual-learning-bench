@@ -1386,3 +1386,54 @@ class StructuredPredictionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSandboxLoss(unittest.TestCase):
+    """The task sandbox can disappear under a running instance (container exit and
+    ``--rm`` removal); ``docker exec`` then fails as an ordinary rc=1 command with a
+    daemon error rather than an exception. ``_execute`` must recreate the sandbox,
+    restore the data room and retry once instead of scoring the loss against the agent."""
+
+    def _task_with_env(self, outputs: list[dict]):
+        from src.tasks.sales_prediction.task import SalesPredictionTask
+
+        task = SalesPredictionTask(num_instances=1, seed=42)
+        calls: dict[str, int] = {"execute": 0, "start": 0, "push": 0}
+
+        class _Env:
+            def execute(self, action):
+                calls["execute"] += 1
+                return outputs.pop(0)
+
+        task._env = _Env()  # type: ignore[assignment]
+        task._start_container = lambda: calls.__setitem__("start", calls["start"] + 1)  # type: ignore[method-assign]
+        task._push_data_room = lambda: calls.__setitem__("push", calls["push"] + 1)  # type: ignore[method-assign]
+        return task, calls
+
+    def test_lost_container_is_recreated_and_the_command_retried_once(self):
+        task, calls = self._task_with_env([
+            {"output": "Error response from daemon: No such container: 0377c137c8a7", "returncode": 1},
+            {"output": "ok", "returncode": 0},
+        ])
+        result = task._execute("ls /app/data")
+        self.assertEqual(result["returncode"], 0)
+        self.assertEqual(result["output"], "ok")
+        self.assertEqual(calls, {"execute": 2, "start": 1, "push": 1})
+
+    def test_ordinary_failure_does_not_recreate(self):
+        task, calls = self._task_with_env([
+            {"output": "cat: data/missing.csv: No such file or directory", "returncode": 1},
+        ])
+        result = task._execute("cat data/missing.csv")
+        self.assertEqual(result["returncode"], 1)
+        self.assertEqual(calls, {"execute": 1, "start": 0, "push": 0})
+
+    def test_second_loss_is_reported_not_looped(self):
+        task, calls = self._task_with_env([
+            {"output": "Error response from daemon: No such container: 0377c137c8a7", "returncode": 1},
+            {"output": "Error response from daemon: No such container: 9a1b2c3d4e5f", "returncode": 1},
+        ])
+        result = task._execute("ls /app/data")
+        self.assertEqual(result["returncode"], 1)
+        self.assertIn("No such container", result["output"])
+        self.assertEqual(calls, {"execute": 2, "start": 1, "push": 1})
