@@ -1,0 +1,176 @@
+{
+  "kind": "run_all_manifest",
+  "run_name": "icl-gpt-5.6-luna",
+  "run_slug": "icl-gpt-5.6-luna",
+  "run_group_id": "2026-09-24T09-06-10.980014Z_run-all",
+  "system": "icl",
+  "system_args": [
+    "--system.model",
+    "gpt-5.6-luna"
+  ],
+  "started_at": "2026-09-24T09:06:10.980031+00:00",
+  "finished_at": "2026-09-24T12:03:21.431032+00:00",
+  "status": "completed",
+  "poll_interval_ms": 2000,
+  "manifest_path": "final_results/runs/icl-gpt-5.6-luna/manifest.json",
+  "final_results_dir": "final_results/runs/icl-gpt-5.6-luna",
+  "logs_dir": "final_results/runs/icl-gpt-5.6-luna/logs",
+  "current_batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+  "tasks": [
+    {
+      "task": "blind_spectrum_monitoring",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T09:06:10.984659+00:00",
+      "finished_at": "2026-09-24T09:39:49.266965+00:00",
+      "exit_code": 0,
+      "duration_seconds": 2018.24,
+      "log_path": "final_results/runs/icl-gpt-5.6-luna/logs/blind_spectrum_monitoring.log",
+      "live_manifest_path": "results/blind_spectrum_monitoring/live/2026-09-24T09-06-10.980014Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/icl-gpt-5.6-luna/tasks/blind_spectrum_monitoring.json.gz",
+      "final_artifact_path": "final_results/runs/icl-gpt-5.6-luna/tasks/blind_spectrum_monitoring.json.gz",
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "headline": {
+        "cumulative_gain": 6.33826,
+        "total_reward": 26.09796,
+        "mean_latency_seconds": 11.005901,
+        "total_cost_usd": 0.22523
+      },
+      "raw_summary_path": "results/blind_spectrum_monitoring/viewer_artifact_2026-09-24T09-06-10.980014Z_run-all_20260924_150943.json.gz"
+    },
+    {
+      "task": "codebase_adaptation",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T09:06:10.984627+00:00",
+      "finished_at": "2026-09-24T10:59:55.331275+00:00",
+      "exit_code": 0,
+      "duration_seconds": 6824.14,
+      "log_path": "final_results/runs/icl-gpt-5.6-luna/logs/codebase_adaptation.log",
+      "live_manifest_path": "results/codebase_adaptation/live/2026-09-24T09-06-10.980014Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/icl-gpt-5.6-luna/tasks/codebase_adaptation.json.gz",
+      "final_artifact_path": "final_results/runs/icl-gpt-5.6-luna/tasks/codebase_adaptation.json.gz",
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "headline": {
+        "cumulative_gain": -0.365,
+        "total_reward": 12.41,
+        "mean_latency_seconds": 143.289695,
+        "total_cost_usd": 0.364481
+      },
+      "raw_summary_path": "results/codebase_adaptation/viewer_artifact_2026-09-24T09-06-10.980014Z_run-all_20260924_162949.json.gz"
+    },
+    {
+      "task": "cohort_studies",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T09:06:10.984728+00:00",
+      "finished_at": "2026-09-24T11:00:45.788545+00:00",
+      "exit_code": 0,
+      "duration_seconds": 6874.6,
+      "log_path": "final_results/runs/icl-gpt-5.6-luna/logs/cohort_studies.log",
+      "live_manifest_path": "results/cohort_studies/live/2026-09-24T09-06-10.980014Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/icl-gpt-5.6-luna/tasks/cohort_studies.json.gz",
+      "final_artifact_path": "final_results/runs/icl-gpt-5.6-luna/tasks/cohort_studies.json.gz",
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "headline": {
+        "cumulative_gain": 0.23968,
+        "total_reward": -0.367794,
+        "mean_latency_seconds": 168.102489,
+        "total_cost_usd": 0.5722842
+      },
+      "raw_summary_path": "results/cohort_studies/viewer_artifact_2026-09-24T09-06-10.980014Z_run-all_20260924_163039.json.gz"
+    },
+    {
+      "task": "database_exploration",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T09:39:49.334829+00:00",
+      "finished_at": "2026-09-24T11:03:48.104693+00:00",
+      "exit_code": 0,
+      "duration_seconds": 5038.6,
+      "log_path": "final_results/runs/icl-gpt-5.6-luna/logs/database_exploration.log",
+      "live_manifest_path": "results/database_exploration/live/2026-09-24T09-06-10.980014Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/icl-gpt-5.6-luna/tasks/database_exploration.json.gz",
+      "final_artifact_path": "final_results/runs/icl-gpt-5.6-luna/tasks/database_exploration.json.gz",
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "headline": {
+        "cumulative_gain": 19.34628,
+        "total_reward": 26.87958,
+        "mean_latency_seconds": 33.589374,
+        "total_cost_usd": 0.1011958
+      },
+      "raw_summary_path": "results/database_exploration/viewer_artifact_2026-09-24T09-06-10.980014Z_run-all_20260924_163342.json.gz"
+    },
+    {
+      "task": "exploitable_poker",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T10:59:55.402543+00:00",
+      "finished_at": "2026-09-24T12:03:21.200883+00:00",
+      "exit_code": 0,
+      "duration_seconds": 3805.81,
+      "log_path": "final_results/runs/icl-gpt-5.6-luna/logs/exploitable_poker.log",
+      "live_manifest_path": "results/exploitable_poker/live/2026-09-24T09-06-10.980014Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/icl-gpt-5.6-luna/tasks/exploitable_poker.json.gz",
+      "final_artifact_path": "final_results/runs/icl-gpt-5.6-luna/tasks/exploitable_poker.json.gz",
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "headline": {
+        "cumulative_gain": 1.78,
+        "total_reward": 117.48,
+        "mean_latency_seconds": 18.358805,
+        "total_cost_usd": 0.4296018
+      },
+      "raw_summary_path": "results/exploitable_poker/viewer_artifact_2026-09-24T09-06-10.980014Z_run-all_20260924_173315.json.gz"
+    },
+    {
+      "task": "sales_prediction",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T11:00:45.908223+00:00",
+      "finished_at": "2026-09-24T11:40:42.704547+00:00",
+      "exit_code": 0,
+      "duration_seconds": 2396.83,
+      "log_path": "final_results/runs/icl-gpt-5.6-luna/logs/sales_prediction.log",
+      "live_manifest_path": "results/sales_prediction/live/2026-09-24T09-06-10.980014Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/icl-gpt-5.6-luna/tasks/sales_prediction.json.gz",
+      "final_artifact_path": "final_results/runs/icl-gpt-5.6-luna/tasks/sales_prediction.json.gz",
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "headline": {
+        "cumulative_gain": 3.37088,
+        "total_reward": 9.53168,
+        "mean_latency_seconds": 62.222002,
+        "total_cost_usd": 0.3468618
+      },
+      "raw_summary_path": "results/sales_prediction/viewer_artifact_2026-09-24T09-06-10.980014Z_run-all_20260924_171037.json.gz"
+    }
+  ],
+  "task_artifacts": null,
+  "task_artifacts_path": "final_results/runs/icl-gpt-5.6-luna/task_artifacts.json.gz",
+  "batches": [
+    {
+      "batch_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "run_group_id": "2026-09-24T09-06-10.980014Z_run-all",
+      "mode": "initial",
+      "tasks_run": [
+        "blind_spectrum_monitoring",
+        "codebase_adaptation",
+        "cohort_studies",
+        "database_exploration",
+        "exploitable_poker",
+        "sales_prediction"
+      ],
+      "tasks_passed": [
+        "blind_spectrum_monitoring",
+        "codebase_adaptation",
+        "cohort_studies",
+        "database_exploration",
+        "exploitable_poker",
+        "sales_prediction"
+      ],
+      "tasks_failed": [],
+      "tasks_skipped": [],
+      "started_at": "2026-09-24T09:06:10.980031+00:00",
+      "finished_at": "2026-09-24T12:03:21.431032+00:00"
+    }
+  ]
+}

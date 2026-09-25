@@ -1,0 +1,423 @@
+{
+ "_source": "kscope-0.0.7 sha256 cc0edd01... `mcp --profile default` initialize + tools/list, captured 2026-09-24 on a throwaway vault",
+ "server": {
+  "name": "kaleidoscope",
+  "version": "0.0.7"
+ },
+ "protocolVersion": "2026-07-28",
+ "instructions": "Kaleidoscope is this user's persistent memory, in a local vault: their prior decisions, stated preferences, standing constraints, corrections and verified outcomes. `search` reads it, `remember` writes it.\n\nCall `search` BEFORE a nontrivial task, not after it — before you plan, choose an approach, write code, or answer a question about how this project works. One short natural-language query describing the goal. Apply what comes back: a decision recorded here is SETTLED, and asking the user something they have already answered is the failure this server exists to prevent. Search again only on a material change of goal, a contradiction, or a selection shown to be stale. It searches remembered statements about this user's work — not files, code or the web.\n\nCall `remember` WITHOUT being asked, as soon as the user states a preference, accepts or rejects a decision, sets a constraint, corrects something you did or said, or a milestone is verified by a test or other observable result. Check after every user message and every verified milestone; do not wait for the words \"remember this\", and do not save it up for the end of the task. It takes a STRUCTURED semantic delta, not free prose — read its input schema before your first write. Never store secrets, transcripts, ordinary file contents or tentative brainstorming.\n\nEverything is local: no network call, no external model, nothing leaves this machine. The full procedure, including how to shape a write, is in the `use-kaleidoscope` skill.",
+ "tools": [
+  {
+   "name": "remember",
+   "description": "Write to this user's persistent Kaleidoscope memory, the local vault `search` reads. Call it WITHOUT being asked whenever the user states a preference, accepts or rejects a decision, sets a standing constraint, corrects something you did or said, or a verified milestone produces an attributable outcome — anything a later session would otherwise have to rediscover. Do not wait for the words \"remember this\" and do not batch it all to the end of the task. It takes a STRUCTURED semantic delta, not free prose: `mode` is create, update or delete; a create or update carries `content_md` (markdown opening with `# `) and a `semantic_delta` whose `memory_type`, `title` and 1-32 `facts` of subject/predicate/object are all required, every entity is `{n, kind, is}` with `is` a mandatory matcher gloss, and update and delete additionally need `expected_version_id`. Dates are NOT entities — they belong in `occurred_at`, a fact's `from`/`until`, or `about.when`, resolved to an absolute value and a grain by you, because the store parses no date. Revise an earlier memory through `corrections` and `contradicts` rather than by appending a second memory; introduce a new relationship name through `propose`, which is active on arrival with no review queue. Send up to 20 memories extracted in one reasoning step as `items`, each self-contained. Do NOT store secrets, credentials, transcripts, ordinary file contents, or tentative brainstorming.",
+   "inputSchema": {
+    "$defs": {
+     "a": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "d": {
+      "additionalProperties": false,
+      "properties": {
+       "contradicts": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 16,
+        "type": "array"
+       },
+       "corrections": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "handle": {
+           "type": "string"
+          },
+          "says": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "handle",
+          "says"
+         ],
+         "type": "object"
+        },
+        "maxItems": 16,
+        "type": "array"
+       },
+       "entities": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "is": {
+           "type": "string"
+          },
+          "kind": {
+           "description": "Seeded kinds: artifact, capability, concept, doc, event, metric, model, org, person, place, practice, tool.",
+           "type": "string"
+          },
+          "n": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "n",
+          "kind",
+          "is"
+         ],
+         "type": "object"
+        },
+        "maxItems": 32,
+        "type": "array"
+       },
+       "evidence": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "digest": {
+           "type": "string"
+          },
+          "kind": {
+           "type": "string"
+          },
+          "reference": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "kind",
+          "reference"
+         ],
+         "type": "object"
+        },
+        "maxItems": 32,
+        "type": "array"
+       },
+       "facts": {
+        "description": "Subject and object must each be a surface declared in entities; one left undeclared is probed bare. A measurement is about.amount+unit, never object.",
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "about": {
+           "description": "Keys, no others: amount, certainty, degree, for, instrument, priority, scope, source, unit, when. certainty/degree/priority: low|medium|high.",
+           "type": "object"
+          },
+          "basis": {
+           "enum": [
+            "background",
+            "implied",
+            "stated"
+           ]
+          },
+          "evidence": {
+           "$ref": "#/$defs/a"
+          },
+          "from": {
+           "$ref": "#/$defs/i"
+          },
+          "mode": {
+           "enum": [
+            "fact",
+            "preference",
+            "decision",
+            "procedure",
+            "outcome",
+            "event"
+           ]
+          },
+          "object": {
+           "type": "string"
+          },
+          "predicate": {
+           "$ref": "#/$defs/r"
+          },
+          "subject": {
+           "type": "string"
+          },
+          "until": {
+           "$ref": "#/$defs/i"
+          }
+         },
+         "required": [
+          "subject",
+          "predicate",
+          "object"
+         ],
+         "type": "object"
+        },
+        "maxItems": 32,
+        "minItems": 1,
+        "type": "array"
+       },
+       "memory_type": {
+        "description": "reuse non-exhaustive type: architecture/preference.",
+        "type": "string"
+       },
+       "occurred_at": {
+        "$ref": "#/$defs/i"
+       },
+       "propose": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "from": {
+           "$ref": "#/$defs/a"
+          },
+          "inverse": {
+           "type": "string"
+          },
+          "many": {
+           "type": "boolean"
+          },
+          "means": {
+           "type": "string"
+          },
+          "over_time": {
+           "enum": [
+            "event",
+            "state",
+            "immutable"
+           ]
+          },
+          "rel": {
+           "$ref": "#/$defs/r"
+          },
+          "to": {
+           "$ref": "#/$defs/a"
+          }
+         },
+         "required": [
+          "rel",
+          "means",
+          "many",
+          "over_time"
+         ],
+         "type": "object"
+        },
+        "maxItems": 8,
+        "type": "array"
+       },
+       "scope": {
+        "additionalProperties": false,
+        "properties": {
+         "artifact": {
+          "type": "string"
+         },
+         "branch": {
+          "type": "string"
+         },
+         "project": {
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "source": {
+        "enum": [
+         "user_stated",
+         "read",
+         "inferred"
+        ]
+       },
+       "temporal": {
+        "additionalProperties": false,
+        "properties": {
+         "valid_from": {
+          "type": "string"
+         },
+         "valid_until": {
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "title": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "memory_type",
+       "title",
+       "facts"
+      ],
+      "type": "object"
+     },
+     "i": {
+      "additionalProperties": false,
+      "properties": {
+       "grain": {
+        "enum": [
+         "year",
+         "month",
+         "day",
+         "hour",
+         "instant"
+        ]
+       },
+       "t": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "t",
+       "grain"
+      ],
+      "type": "object"
+     },
+     "r": {
+      "description": "Seeded verbs; a novel one splits the relation: authored, avoids, blocked_by, caused, costs, decided, depends_on, instance_of, made_by, measured_at, owned_by, part_of, powers, prefers, stopped_using, strong_at, switched_to, uses, weak_at, worked_on. Fold-emitted, refused: contradicts, justified_by, not_same_as, possibly_same_as, same_as, supersedes.",
+      "type": "string"
+     }
+    },
+    "additionalProperties": false,
+    "description": "1-32 facts; update/delete need expected_version_id; Batch: create-only/exclusive; rel/kind are open; active immediately; n/kind/is matcher gloss; entities/evidence32 propose8 corrections/contradicts16. An accepted call: {\"content_md\":\"p95 read 9ms\",\"mode\":\"create\",\"semantic_delta\":{\"entities\":[{\"is\":\"served read\",\"kind\":\"capability\",\"n\":\"read path\"},{\"is\":\"latency\",\"kind\":\"metric\",\"n\":\"p95\"}],\"facts\":[{\"about\":{\"amount\":9,\"unit\":\"ms\"},\"object\":\"p95\",\"predicate\":\"measured_at\",\"subject\":\"read path\"}],\"memory_type\":\"outcome\",\"title\":\"p95 read 9ms\"}}",
+    "properties": {
+     "content_md": {
+      "type": "string"
+     },
+     "expected_version_id": {
+      "type": "string"
+     },
+     "items": {
+      "items": {
+       "additionalProperties": false,
+       "properties": {
+        "content_md": {
+         "type": "string"
+        },
+        "semantic_delta": {
+         "$ref": "#/$defs/d"
+        }
+       },
+       "required": [
+        "content_md",
+        "semantic_delta"
+       ],
+       "type": "object"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "type": "array"
+     },
+     "memory_id": {
+      "type": "string"
+     },
+     "mode": {
+      "enum": [
+       "create",
+       "update",
+       "delete"
+      ]
+     },
+     "semantic_delta": {
+      "$ref": "#/$defs/d"
+     }
+    },
+    "required": [
+     "mode"
+    ],
+    "type": "object",
+    "x-kscope-schema": "1"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false
+   }
+  },
+  {
+   "name": "search",
+   "description": "Read this user's persistent Kaleidoscope memory: their prior decisions, stated preferences, standing constraints, corrections, reusable procedures and recorded outcomes, held in a local vault. Use it BEFORE starting a nontrivial task rather than after one, to recover context you would otherwise rediscover or ask the user for a second time, and to check whether a question has already been settled. Exactly one of two modes per call: a `query` is a natural-language ranked read that selects and bounds the served context and WRITES an exposure row, so it is a write and must not be freely replayed or cached; a `memory_id` returns that one exact current record, ranks and filters nothing, and refuses the ranked-only controls. `top_k` is protocol-defining rather than a page size — it decides the served shape, and ~5 is the intended size — while `candidate_pool`, `bfs_depth` and `max_facts` bound the work behind it. Do NOT use this as a file, code or web search: it searches remembered statements about this user's work, not file contents, and it reaches nothing outside the local vault.",
+   "inputSchema": {
+    "additionalProperties": false,
+    "oneOf": [
+     {
+      "properties": {
+       "memory_id": {
+        "type": "null"
+       }
+      },
+      "required": [
+       "query"
+      ]
+     },
+     {
+      "additionalProperties": false,
+      "properties": {
+       "memory_id": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "memory_id"
+      ]
+     }
+    ],
+    "properties": {
+     "as_of": {
+      "type": "string"
+     },
+     "candidate_pool": {
+      "type": "integer"
+     },
+     "channels": {
+      "items": {
+       "enum": [
+        "lexical",
+        "semantic",
+        "precedent",
+        "address"
+       ]
+      },
+      "type": "array"
+     },
+     "ledger": {
+      "enum": [
+       true
+      ],
+      "type": "boolean"
+     },
+     "maximum_context_bytes": {
+      "type": "integer"
+     },
+     "memory_id": {
+      "type": "string"
+     },
+     "query": {
+      "type": "string"
+     },
+     "scope": {
+      "additionalProperties": false,
+      "properties": {
+       "artifact": {
+        "type": "string"
+       },
+       "branch": {
+        "type": "string"
+       },
+       "project": {
+        "type": "string"
+       }
+      },
+      "type": "object"
+     },
+     "top_k": {
+      "type": "integer"
+     }
+    },
+    "type": "object",
+    "x-kscope-schema": "1"
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   }
+  }
+ ]
+}
