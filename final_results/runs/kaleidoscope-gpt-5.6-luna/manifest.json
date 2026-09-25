@@ -1,0 +1,232 @@
+{
+  "kind": "run_all_manifest",
+  "run_name": "kaleidoscope-gpt-5.6-luna",
+  "run_slug": "kaleidoscope-gpt-5.6-luna",
+  "run_group_id": "2026-09-24T16-14-47.691741Z_run-all",
+  "system": "kaleidoscope_v2",
+  "system_args": [
+    "--system.model",
+    "gpt-5.6-luna",
+    "--system.kscope-binary",
+    "<data>/bin/kscope-0.0.7-cc0edd01",
+    "--system.kscope-sha256",
+    "cc0edd01ef82fac3c779d7a731deec3c3fd9e3cdcc38b3ae1599d89ba3943902",
+    "--system.kscope-entitlement-src",
+    "<data>/entitlement-source"
+  ],
+  "started_at": "2026-09-24T16:14:47.691759+00:00",
+  "finished_at": "2026-09-25T06:35:32.597539+00:00",
+  "status": "completed_with_failures",
+  "poll_interval_ms": 2000,
+  "manifest_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/manifest.json",
+  "final_results_dir": "final_results/runs/kaleidoscope-gpt-5.6-luna",
+  "logs_dir": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs",
+  "current_batch_id": "2026-09-25T05-40-38.312745Z_run-all",
+  "tasks": [
+    {
+      "task": "cohort_studies",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T16:14:47.695768+00:00",
+      "finished_at": "2026-09-24T19:13:55.313063+00:00",
+      "exit_code": 0,
+      "duration_seconds": 10747.44,
+      "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/cohort_studies.log",
+      "live_manifest_path": "results/cohort_studies/live/2026-09-24T16-14-47.691741Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/cohort_studies.json.gz",
+      "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/cohort_studies.json.gz",
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "headline": {
+        "cumulative_gain": 0.384424,
+        "total_reward": -0.155152,
+        "mean_latency_seconds": 101.163367,
+        "total_cost_usd": 2.1859002
+      },
+      "raw_summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/cohort_studies.json.gz"
+    },
+    {
+      "task": "codebase_adaptation",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T16:14:47.695838+00:00",
+      "finished_at": "2026-09-24T17:35:20.044284+00:00",
+      "exit_code": 0,
+      "duration_seconds": 4832.19,
+      "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/codebase_adaptation.log",
+      "live_manifest_path": "results/codebase_adaptation/live/2026-09-24T16-14-47.691741Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/codebase_adaptation.json.gz",
+      "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/codebase_adaptation.json.gz",
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "headline": {
+        "cumulative_gain": 1.28,
+        "total_reward": 14.43,
+        "mean_latency_seconds": 72.631652,
+        "total_cost_usd": 1.095598
+      },
+      "raw_summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/codebase_adaptation.json.gz"
+    },
+    {
+      "task": "blind_spectrum_monitoring",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T16:14:47.695804+00:00",
+      "finished_at": "2026-09-24T17:43:39.509982+00:00",
+      "exit_code": 0,
+      "duration_seconds": 5331.67,
+      "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/blind_spectrum_monitoring.log",
+      "live_manifest_path": "results/blind_spectrum_monitoring/live/2026-09-24T16-14-47.691741Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/blind_spectrum_monitoring.json.gz",
+      "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/blind_spectrum_monitoring.json.gz",
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "headline": {
+        "cumulative_gain": 9.8602,
+        "total_reward": 29.6199,
+        "mean_latency_seconds": 31.865656,
+        "total_cost_usd": 0.7442614
+      },
+      "raw_summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/blind_spectrum_monitoring.json.gz"
+    },
+    {
+      "task": "exploitable_poker",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T17:43:39.601813+00:00",
+      "finished_at": "2026-09-24T20:02:00.668478+00:00",
+      "exit_code": 0,
+      "duration_seconds": 8300.96,
+      "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/exploitable_poker.log",
+      "live_manifest_path": "results/exploitable_poker/live/2026-09-24T16-14-47.691741Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/exploitable_poker.json.gz",
+      "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/exploitable_poker.json.gz",
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "headline": {
+        "cumulative_gain": -49.4,
+        "total_reward": 68.1,
+        "mean_latency_seconds": 28.124064,
+        "total_cost_usd": 1.2735172
+      },
+      "raw_summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/exploitable_poker.json.gz"
+    },
+    {
+      "task": "sales_prediction",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T19:09:56.161553+00:00",
+      "finished_at": "2026-09-24T20:17:04.504486+00:00",
+      "exit_code": 0,
+      "duration_seconds": 4028.22,
+      "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/sales_prediction.log",
+      "live_manifest_path": "results/sales_prediction/live/2026-09-24T16-14-47.691741Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/sales_prediction.json.gz",
+      "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/sales_prediction.json.gz",
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "headline": {
+        "cumulative_gain": 3.62112,
+        "total_reward": 9.83712,
+        "mean_latency_seconds": 101.322585,
+        "total_cost_usd": 0.9563026
+      },
+      "raw_summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/sales_prediction.json.gz"
+    },
+    {
+      "task": "database_exploration",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-09-24T17:35:21.589006+00:00",
+      "finished_at": "2026-09-25T08:16:11.327911+00:00",
+      "exit_code": 0,
+      "duration_seconds": 52849.74,
+      "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/database_exploration.log",
+      "live_manifest_path": "results/database_exploration/live/2026-09-24T16-14-47.691741Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/database_exploration.json.gz",
+      "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/database_exploration.json.gz",
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "headline": {
+        "cumulative_gain": 13.1333,
+        "total_reward": 19.7333,
+        "mean_latency_seconds": 22.26612,
+        "total_cost_usd": 0.5704846
+      },
+      "raw_summary_path": "results/database_exploration/viewer_artifact_2026-09-24T16-14-47.691741Z_run-all_20260925_134606.json.gz",
+      "note": {
+        "completion": "no-memory instance 108 (index 28 of 40) never finished in run group 2026-09-24T16-14-47.691741Z_run-all. Launch 20260925T081327Z-kaleidoscope-gpt-5.6-luna (launch.py --complete-baseline-instance) ran it alone on kaleidoscope_v2 2.0.1 and assembled the task with the benchmark's own clbench run code from this run group's recorded rollouts and no-memory instances, which are unchanged.",
+        "launch_id": "20260925T081327Z-kaleidoscope-gpt-5.6-luna",
+        "launch_record": "<data>/launches/20260925T081327Z-kaleidoscope-gpt-5.6-luna.json",
+        "instance_id": "108",
+        "instance_index": 28,
+        "system_code": {
+          "module": "src.systems.kaleidoscope_v2.system",
+          "version": "2.0.1",
+          "system_py_sha256": "ac41b0c35c1e118a28bca942ccb9f740183c8dec6066cb2d1089b36920fe2a5b"
+        },
+        "recorded_from": "<data>/preserved/r1b-database-v2.0-attempt1/live",
+        "started_at_is": "the first record of the original clbench run's run.log; run-all's own start time for this task was lost when a later batch replaced this entry (replaced_entry)",
+        "replaced_entry": {
+          "task": "database_exploration",
+          "schedule": "default",
+          "status": "failed",
+          "started_at": "2026-09-25T05:40:38.321290+00:00",
+          "finished_at": "2026-09-25T06:35:32.595767+00:00",
+          "exit_code": 1,
+          "duration_seconds": 3294.26,
+          "log_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/logs/database_exploration.log",
+          "live_manifest_path": "results/database_exploration/live/2026-09-25T05-40-38.312745Z_run-all/manifest.json",
+          "summary_path": null,
+          "final_artifact_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/tasks/database_exploration.json.gz",
+          "batch_id": "2026-09-25T05-40-38.312745Z_run-all",
+          "headline": {
+            "cumulative_gain": null,
+            "total_reward": null,
+            "mean_latency_seconds": null,
+            "total_cost_usd": null
+          }
+        }
+      }
+    }
+  ],
+  "task_artifacts": null,
+  "task_artifacts_path": "final_results/runs/kaleidoscope-gpt-5.6-luna/task_artifacts.json.gz",
+  "batches": [
+    {
+      "batch_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "run_group_id": "2026-09-24T16-14-47.691741Z_run-all",
+      "mode": "initial",
+      "tasks_run": [
+        "cohort_studies",
+        "codebase_adaptation",
+        "blind_spectrum_monitoring",
+        "database_exploration",
+        "exploitable_poker",
+        "sales_prediction"
+      ],
+      "tasks_passed": [
+        "cohort_studies",
+        "codebase_adaptation",
+        "blind_spectrum_monitoring",
+        "exploitable_poker",
+        "sales_prediction"
+      ],
+      "tasks_failed": [
+        "database_exploration"
+      ],
+      "tasks_skipped": [],
+      "started_at": "2026-09-24T16:14:47.691759+00:00",
+      "finished_at": "2026-09-24T20:17:04.579217+00:00"
+    },
+    {
+      "batch_id": "2026-09-25T05-40-38.312745Z_run-all",
+      "run_group_id": "2026-09-25T05-40-38.312745Z_run-all",
+      "mode": "overwrite_task",
+      "tasks_run": [
+        "database_exploration"
+      ],
+      "tasks_passed": [],
+      "tasks_failed": [
+        "database_exploration"
+      ],
+      "tasks_skipped": [],
+      "started_at": "2026-09-25T05:40:38.312764+00:00",
+      "finished_at": "2026-09-25T06:35:32.597539+00:00"
+    }
+  ]
+}
