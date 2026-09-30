@@ -43,7 +43,7 @@ from ..variants import TaskVariantSpec, get_task_variant, validate_variant_defau
 
 from .evaluator import evaluate_submission
 from .generic_runtime import (
-    initialize_generic_pr_container,
+    initialize_generic_pr_base_tree,
     instance_cwd,
     is_generic_pr_instance,
 )
@@ -735,13 +735,13 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         self._initialize_generic_pr_workspace(instance)
 
     def _initialize_generic_pr_workspace(self, instance: TaskInstance) -> None:
-        """Initialize a real-PR task from base_commit plus test_patch."""
+        """Initialize an actor workspace from the issue's base commit."""
 
         if self._env is None or not getattr(self._env, "container_id", None):
             raise RuntimeError("No active container available for generic PR init")
 
         try:
-            initialize_generic_pr_container(
+            initialize_generic_pr_base_tree(
                 self._env.container_id,
                 instance.raw_data,
             )

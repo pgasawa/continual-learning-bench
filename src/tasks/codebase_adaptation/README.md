@@ -34,6 +34,9 @@ Use `clbench inspect task codebase_adaptation` for current schedule and variant 
 
 ## Evaluation
 
+Actor workspaces are initialized from the task's `base_commit` without the
+official `test_patch`. Regression tests remain evaluator-only.
+
 For each submitted patch, evaluation starts from a clean task image, checks out the task `base_commit`, applies the official `test_patch`, strips model edits to test-owned paths, applies the model patch, and runs the derived test targets. Exact `FAIL_TO_PASS` and `PASS_TO_PASS` node IDs are used when available.
 
 The primary outcome is whether the issue is solved within the command budget. The CL score emphasizes step efficiency:

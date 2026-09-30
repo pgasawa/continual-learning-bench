@@ -1,4 +1,5 @@
 import subprocess
+from types import SimpleNamespace
 
 from src.tasks.codebase_adaptation import generic_runtime as gr
 
@@ -205,6 +206,84 @@ def test_restore_patch_files_to_base_handles_new_and_existing_files(monkeypatch)
 def test_instance_cwd_defaults_to_testbed():
     assert gr.instance_cwd({}) == "/testbed"
     assert gr.instance_cwd({"workdir": "/repo"}) == "/repo"
+
+
+def test_base_tree_initializer_does_not_apply_test_patch(monkeypatch):
+    commands: list[str] = []
+    applied_patches: list[str] = []
+
+    def fake_docker_exec(_container_id, command, _cwd, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(
+            args=["docker", "exec"], returncode=0, stdout=""
+        )
+
+    monkeypatch.setattr(gr, "_docker_exec", fake_docker_exec)
+    monkeypatch.setattr(
+        gr,
+        "_apply_patch_text",
+        lambda _container_id, _cwd, patch, **kwargs: applied_patches.append(patch),
+    )
+
+    instance = {
+        "base_commit": "abc123",
+        "test_patch": "OFFICIAL TEST PATCH",
+        "workdir": "/testbed",
+    }
+    gr.initialize_generic_pr_base_tree("cid", instance)
+
+    assert commands == [
+        "git reset --hard && git clean -fd",
+        "git checkout abc123",
+    ]
+    assert applied_patches == []
+
+
+def test_evaluator_initializer_applies_official_test_patch(monkeypatch):
+    calls: list[tuple[str, dict]] = []
+    applied_patches: list[str] = []
+    monkeypatch.setattr(
+        gr,
+        "initialize_generic_pr_base_tree",
+        lambda container_id, instance, **kwargs: calls.append((container_id, instance)),
+    )
+    monkeypatch.setattr(
+        gr,
+        "_apply_patch_text",
+        lambda _container_id, _cwd, patch, **kwargs: applied_patches.append(patch),
+    )
+
+    instance = {
+        "base_commit": "abc123",
+        "test_patch": "OFFICIAL TEST PATCH",
+        "workdir": "/testbed",
+    }
+    gr.initialize_generic_pr_container("cid", instance)
+
+    assert calls == [("cid", instance)]
+    assert applied_patches == ["OFFICIAL TEST PATCH"]
+
+
+def test_actor_workspace_uses_base_tree_initializer(monkeypatch):
+    from src.tasks.codebase_adaptation import task as task_module
+
+    calls: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        task_module,
+        "initialize_generic_pr_base_tree",
+        lambda container_id, instance: calls.append((container_id, instance)),
+    )
+
+    task = task_module.CodebaseAdaptationTask()
+    task._env = SimpleNamespace(container_id="cid")
+    instance = SimpleNamespace(
+        instance_id="example__repo-1",
+        raw_data={"base_commit": "abc123", "test_patch": "OFFICIAL TEST PATCH"},
+    )
+
+    task._initialize_generic_pr_workspace(instance)
+
+    assert calls == [("cid", instance.raw_data)]
 
 
 def test_evaluate_generic_pr_submission_restores_test_patch_before_running_tests(
