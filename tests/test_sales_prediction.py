@@ -491,6 +491,44 @@ class PromptsTests(unittest.TestCase):
         self.assertIn("2014", prompt)
         self.assertIn("institutional knowledge", prompt)
 
+    def test_clean_workspace_template_does_not_promise_persistence(self):
+        prompt = render_template(
+            "instance.j2",
+            target_year=2015,
+            round_num=4,
+            prev_year=2014,
+            prev_round_feedback_json="{}",
+            target_entity_count=5,
+            required_pairs=[],
+            clean_workspace_between_instances=True,
+        )
+
+        self.assertIn("Each round starts in a fresh container", prompt)
+        self.assertIn("persist for the current round only", prompt)
+        self.assertIn(
+            "Reference files are in `data/`.\nYou have access to Pandas", prompt
+        )
+        self.assertNotIn("Your previous workspace", prompt)
+        self.assertNotIn("reuse scripts from prior rounds", prompt)
+
+    def test_persistent_workspace_template_keeps_original_guidance(self):
+        prompt = render_template(
+            "instance.j2",
+            target_year=2015,
+            round_num=4,
+            prev_year=2014,
+            prev_round_feedback_json="{}",
+            target_entity_count=5,
+            required_pairs=[],
+            clean_workspace_between_instances=False,
+        )
+
+        self.assertIn("Your previous workspace (`/app/`) persists", prompt)
+        self.assertIn("will carry forward to the next year", prompt)
+        self.assertIn("next year. \nYou have access to Pandas", prompt)
+        self.assertIn("reuse scripts from prior rounds", prompt)
+        self.assertIn("previous workspace (code, models, notes)", prompt)
+
 
 class ForecastHorizonTests(unittest.TestCase):
     def test_instance_forecast_years(self):
@@ -607,26 +645,31 @@ class WorkspacePersistenceTests(unittest.TestCase):
         )
         self.assertTrue(task.clean_workspace_between_instances)
 
-    def test_clean_agent_workspace_command(self):
+    def test_agent_brief_describes_workspace_mode(self):
+        from src.tasks.sales_prediction.task import SalesPredictionTask
+
+        persistent = SalesPredictionTask(num_instances=1, seed=42)
+        clean = SalesPredictionTask(
+            num_instances=1, seed=42, clean_workspace_between_instances=True
+        )
+
+        self.assertIn("workspace persists", persistent.get_agent_brief().objective)
+        self.assertIn("fresh container", clean.get_agent_brief().objective)
+        self.assertNotIn("workspace persists", clean.get_agent_brief().objective)
+
+    def test_clean_workspace_restarts_container_before_pushing_data(self):
         from src.tasks.sales_prediction.task import SalesPredictionTask
 
         task = SalesPredictionTask(
             num_instances=1, seed=42, clean_workspace_between_instances=True
         )
-        commands_run: list[str] = []
+        events: list[str] = []
+        task._start_container = lambda: events.append("start")  # type: ignore[method-assign]
+        task._push_data_room = lambda: events.append("push")  # type: ignore[method-assign]
 
-        def mock_execute(command: str) -> dict:
-            commands_run.append(command)
-            return {"output": "", "returncode": 0, "exception_info": None}
+        task._update_data_room()
 
-        task._execute = mock_execute  # type: ignore[assignment]
-        task._clean_agent_workspace()
-
-        self.assertEqual(len(commands_run), 1)
-        cmd = commands_run[0]
-        self.assertIn("find /app", cmd)
-        self.assertIn("! -name data", cmd)
-        self.assertIn("-exec rm -rf", cmd)
+        self.assertEqual(events, ["start", "push"])
 
 
 class DataRoomTests(unittest.TestCase):

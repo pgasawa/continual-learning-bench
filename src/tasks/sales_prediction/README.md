@@ -26,8 +26,9 @@ Each instance is a multi-step bash interaction:
    entities, data files, and any previous-round feedback.
 2. The agent emits one bash command per step, executed in `/app` inside the task
    container.
-3. Files written under `/app` persist across instances unless
-   `clean_workspace_between_instances=true`.
+3. Container state persists across instances unless
+   `clean_workspace_between_instances=true`, which starts a fresh container at
+   each instance boundary.
 4. When ready, the agent runs `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT` to
    trigger structured-output extraction.
 
@@ -155,4 +156,4 @@ Relevant task parameters:
 - `repeat_instructions` (default `True`): canonical configs set this to `False`
   after the first instance to save context.
 - `clean_workspace_between_instances` (default `False`; baseline override
-  `True`): wipe `/app` except `data/` between instances.
+  `True`): start a fresh task container between instances.

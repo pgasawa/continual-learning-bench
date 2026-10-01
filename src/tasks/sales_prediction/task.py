@@ -583,12 +583,16 @@ class SalesPredictionTask(ContinualLearningTask):
         )
 
     def get_agent_brief(self) -> TaskAgentBrief:
+        workspace_description = (
+            "Each year starts in a fresh container."
+            if self.clean_workspace_between_instances
+            else "Your workspace persists across years."
+        )
         return TaskAgentBrief(
             objective=(
                 "Predict annual furniture sales for a retailer that is "
                 "expanding across regions. Each year you receive fresh data "
-                "and must submit a 5-year forecast. Your workspace persists "
-                "across years."
+                f"and must submit a 5-year forecast. {workspace_description}"
             ),
             instance_unit="One multi-year sales forecast task.",
             reward_definition=(
@@ -888,16 +892,12 @@ class SalesPredictionTask(ContinualLearningTask):
         self._write_file_to_container("/app/data/locations.json", dr.locations_json)
 
     def _update_data_room(self) -> None:
-        """Update data room for a subsequent instance (without full rebuild)."""
+        """Prepare the data room for the next instance."""
         if self.clean_workspace_between_instances:
-            self._clean_agent_workspace()
+            # Bash access is not confined to /app, so selective deletion cannot
+            # guarantee a clean workspace. Restart the container instead.
+            self._start_container()
         self._push_data_room()
-
-    def _clean_agent_workspace(self) -> None:
-        """Remove agent-created files, preserving the data room."""
-        self._execute(
-            "find /app -mindepth 1 -maxdepth 1 ! -name data -exec rm -rf {} +"
-        )
 
     def _write_file_to_container(self, path: str, content: str) -> None:
         """Write a file into the running container via bash."""
@@ -943,6 +943,9 @@ class SalesPredictionTask(ContinualLearningTask):
             "furniture_name_key": profile.furniture_name_key,
             "location_id_key": profile.location_id_key,
             "locality_key": profile.locality_key,
+            "clean_workspace_between_instances": (
+                self.clean_workspace_between_instances
+            ),
         }
 
         if dr is not None and dr.extra_files:
