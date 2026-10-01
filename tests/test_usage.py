@@ -2,7 +2,9 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
+import litellm
 from pydantic import BaseModel
 
 from src.cli import format_cost_summary
@@ -127,6 +129,30 @@ class SelfReportedCostSystem(ContinualLearningSystem):
 
 
 class UsageTrackingTests(unittest.TestCase):
+    def setUp(self):
+        pricing = {
+            "gpt-5.4": {
+                "litellm_provider": "openai",
+                "mode": "chat",
+                "input_cost_per_token": 2.5e-6,
+                "output_cost_per_token": 15e-6,
+                "cache_read_input_token_cost": 0.25e-6,
+                "input_cost_per_token_above_272k_tokens": 5e-6,
+                "output_cost_per_token_above_272k_tokens": 22.5e-6,
+                "cache_read_input_token_cost_above_272k_tokens": 0.5e-6,
+            },
+            "gpt-5.4-mini": {
+                "litellm_provider": "openai",
+                "mode": "chat",
+                "input_cost_per_token": 0.75e-6,
+                "output_cost_per_token": 4.5e-6,
+                "cache_read_input_token_cost": 0.075e-6,
+            },
+        }
+        self._pricing_patch = patch.dict(litellm.model_cost, pricing)
+        self._pricing_patch.start()
+        self.addCleanup(self._pricing_patch.stop)
+
     def test_usage_summary_allows_missing_token_counts(self):
         summary = summarize_usage_events(
             [
