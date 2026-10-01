@@ -35,7 +35,7 @@ def _discover_system_modules() -> dict[str, str]:
     """Discover system modules from flat files or package directories."""
     modules: dict[str, str] = {}
     for path in sorted(_SYSTEMS_ROOT.glob("*.py")):
-        if path.stem == "__init__" or path.stem.startswith("_"):
+        if path.stem == "common" or path.stem.startswith("_"):
             continue
         modules[path.stem] = f"src.systems.{path.stem}"
     for path in sorted(_SYSTEMS_ROOT.iterdir()):
