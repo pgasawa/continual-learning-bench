@@ -34,6 +34,16 @@ Use `clbench inspect task codebase_adaptation` for current schedule and variant 
 
 ## Evaluation
 
+Actor workspaces are initialized from the task's `base_commit` without the
+official `test_patch`. Regression tests remain evaluator-only.
+
+By default, the actor's inherited Git database is replaced with a single-commit
+snapshot of `base_commit`. This prevents later solution commits stored in the
+task image from being recovered through Git history. Set
+`sanitize_actor_workspace=false` only to retain the image's original history.
+The sanitizer targets the task images' standard Git checkout layout; it can be
+extended if future images require alternate layouts such as submodules.
+
 For each submitted patch, evaluation starts from a clean task image, checks out the task `base_commit`, applies the official `test_patch`, strips model edits to test-owned paths, applies the model patch, and runs the derived test targets. Exact `FAIL_TO_PASS` and `PASS_TO_PASS` node IDs are used when available.
 
 The primary outcome is whether the issue is solved within the command budget. The CL score emphasizes step efficiency:

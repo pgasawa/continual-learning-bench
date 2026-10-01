@@ -43,10 +43,11 @@ from ..variants import TaskVariantSpec, get_task_variant, validate_variant_defau
 
 from .evaluator import evaluate_submission
 from .generic_runtime import (
-    initialize_generic_pr_container,
+    initialize_generic_pr_base_tree,
     instance_cwd,
     is_generic_pr_instance,
 )
+from .sanitized_runtime import initialize_sanitized_actor_container
 from .task_loader import TaskInstance, load_tasks
 from .prompts import _SYSTEM_TEMPLATE, _INSTANCE_TEMPLATE
 
@@ -160,6 +161,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         same_repo: bool = True,
         variant: Optional[str] = None,
         schedule: Optional[str] = None,
+        sanitize_actor_workspace: bool = True,
     ):
         self.variant = variant
         self.schedule = schedule
@@ -296,6 +298,7 @@ class CodebaseAdaptationTask(ContinualLearningTask):
 
         self.repo_filter = repo_filter
         self.seed = seed
+        self.sanitize_actor_workspace = sanitize_actor_workspace
 
         self.instances: list[TaskInstance] = []
         self.current_issue_idx = 0
@@ -735,16 +738,18 @@ class CodebaseAdaptationTask(ContinualLearningTask):
         self._initialize_generic_pr_workspace(instance)
 
     def _initialize_generic_pr_workspace(self, instance: TaskInstance) -> None:
-        """Initialize a real-PR task from base_commit plus test_patch."""
+        """Initialize an actor workspace from the issue's base commit."""
 
         if self._env is None or not getattr(self._env, "container_id", None):
             raise RuntimeError("No active container available for generic PR init")
 
         try:
-            initialize_generic_pr_container(
-                self._env.container_id,
-                instance.raw_data,
+            initializer = (
+                initialize_sanitized_actor_container
+                if self.sanitize_actor_workspace
+                else initialize_generic_pr_base_tree
             )
+            initializer(self._env.container_id, instance.raw_data)
             logger.info(f"Initialized generic PR workspace for {instance.instance_id}")
         except Exception as exc:
             logger.error(

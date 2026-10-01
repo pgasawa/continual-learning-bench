@@ -303,14 +303,14 @@ def _apply_patch_text(
             os.unlink(temp_path)
 
 
-def initialize_generic_pr_container(
+def initialize_generic_pr_base_tree(
     container_id: str,
     instance: dict[str, Any],
     *,
     docker_executable: str = "docker",
     timeout: int = 120,
 ) -> None:
-    """Reset a repo and reconstruct the buggy task state from base_commit."""
+    """Reset a repository and check out the instance's base commit."""
 
     cwd = instance_cwd(instance)
     reset_result = _docker_exec(
@@ -344,6 +344,24 @@ def initialize_generic_pr_container(
         if submodule_result.returncode != 0:
             raise RuntimeError(submodule_result.stdout)
 
+
+def initialize_generic_pr_container(
+    container_id: str,
+    instance: dict[str, Any],
+    *,
+    docker_executable: str = "docker",
+    timeout: int = 120,
+) -> None:
+    """Initialize an evaluator or curation workspace with the official test patch."""
+
+    initialize_generic_pr_base_tree(
+        container_id,
+        instance,
+        docker_executable=docker_executable,
+        timeout=timeout,
+    )
+
+    cwd = instance_cwd(instance)
     _apply_patch_text(
         container_id,
         cwd,
