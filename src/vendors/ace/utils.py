@@ -2,6 +2,8 @@
 import os
 import re
 import json
+from functools import lru_cache
+
 import openai
 import tiktoken
 from dotenv import load_dotenv
@@ -156,11 +158,13 @@ def extract_answer(response):
         return "No final answer found"
 
 
-enc = tiktoken.get_encoding("cl100k_base")
+@lru_cache(maxsize=1)
+def _token_encoder():
+    return tiktoken.get_encoding("cl100k_base")
 
 
 def count_tokens(prompt: str) -> int:
-    return len(enc.encode(prompt))
+    return len(_token_encoder().encode(prompt))
 
 
 def evaluate_single_test_sample(args_tuple, data_processor) -> Tuple[Dict, str]:
