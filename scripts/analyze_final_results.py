@@ -42,6 +42,7 @@ DEFAULT_RUN_NAMES = {
     "claude-code-sonnet-4.6",
     "icl-notepad-claude-sonnet-4-6",
     "icl-claude-opus-4.7",
+    "logbook-icl-claude-sonnet-4-6",
 }
 
 POKER_VALID_COMPLETE_RUN_LIMITS: dict[str, int] = {}

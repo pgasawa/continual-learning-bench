@@ -31,6 +31,7 @@ SYSTEM_DEFS = [
     ("ace", "ACE", "ace"),
     ("codex", "Codex", "codex"),
     ("claude-code", "Claude Code", "claude-code"),
+    ("logbook-icl", "ICL + Logbook", "logbook-icl"),
 ]
 
 # Add entries here when a new model is introduced.
