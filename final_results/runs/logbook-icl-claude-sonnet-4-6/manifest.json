@@ -1,0 +1,207 @@
+{
+  "kind": "run_all_manifest",
+  "run_name": "logbook-icl-claude-sonnet-4-6",
+  "run_slug": "logbook-icl-claude-sonnet-4-6",
+  "run_group_id": "2026-11-02T16-49-10.698452Z_run-all",
+  "system": "logbook_icl",
+  "system_args": [
+    "--system.model",
+    "claude-sonnet-4-6",
+    "--system.logbook-dir",
+    "written_logbooks"
+  ],
+  "started_at": "2026-11-02T16:49:10.698500+00:00",
+  "finished_at": "2026-11-03T12:12:48.777893+00:00",
+  "status": "completed",
+  "poll_interval_ms": 2000,
+  "manifest_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/manifest.json",
+  "final_results_dir": "final_results/runs/logbook-icl-claude-sonnet-4-6",
+  "logs_dir": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs",
+  "current_batch_id": "2026-11-03T11-31-08.668064Z_run-all",
+  "tasks": [
+    {
+      "task": "blind_spectrum_monitoring",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-11-02T16:49:10.720499+00:00",
+      "finished_at": "2026-11-02T17:03:43.571413+00:00",
+      "exit_code": 0,
+      "duration_seconds": 872.85,
+      "log_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs/blind_spectrum_monitoring.log",
+      "live_manifest_path": "results/blind_spectrum_monitoring/live/2026-11-02T16-49-10.698452Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/blind_spectrum_monitoring.json.gz",
+      "final_artifact_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/blind_spectrum_monitoring.json.gz",
+      "batch_id": "2026-11-02T16-49-10.698452Z_run-all",
+      "headline": {
+        "cumulative_gain": 32.73668,
+        "total_reward": 52.47848,
+        "mean_latency_seconds": 8.061796,
+        "total_cost_usd": 3.5800318
+      },
+      "raw_summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/blind_spectrum_monitoring.json.gz"
+    },
+    {
+      "task": "cohort_studies",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-11-02T16:49:10.728489+00:00",
+      "finished_at": "2026-11-02T17:21:54.529405+00:00",
+      "exit_code": 0,
+      "duration_seconds": 1963.79,
+      "log_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs/cohort_studies.log",
+      "live_manifest_path": "results/cohort_studies/live/2026-11-02T16-49-10.698452Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/cohort_studies.json.gz",
+      "final_artifact_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/cohort_studies.json.gz",
+      "batch_id": "2026-11-02T16-49-10.698452Z_run-all",
+      "headline": {
+        "cumulative_gain": -0.319758,
+        "total_reward": -0.869575,
+        "mean_latency_seconds": 62.741259,
+        "total_cost_usd": 5.145786
+      },
+      "raw_summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/cohort_studies.json.gz"
+    },
+    {
+      "task": "exploitable_poker",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-11-02T17:22:13.928770+00:00",
+      "finished_at": "2026-11-02T19:29:48.070559+00:00",
+      "exit_code": 0,
+      "duration_seconds": 7654.14,
+      "log_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs/exploitable_poker.log",
+      "live_manifest_path": "results/exploitable_poker/live/2026-11-02T17-22-13.926219Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/exploitable_poker.json.gz",
+      "final_artifact_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/exploitable_poker.json.gz",
+      "batch_id": "2026-11-02T17-22-13.926219Z_run-all",
+      "headline": {
+        "cumulative_gain": -73.86,
+        "total_reward": 200.24,
+        "mean_latency_seconds": 50.68589,
+        "total_cost_usd": 17.9345542
+      },
+      "raw_summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/exploitable_poker.json.gz"
+    },
+    {
+      "task": "database_exploration",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-11-03T11:31:08.670932+00:00",
+      "finished_at": "2026-11-03T11:43:34.844659+00:00",
+      "exit_code": 0,
+      "duration_seconds": 746.17,
+      "log_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs/database_exploration.log",
+      "live_manifest_path": "results/database_exploration/live/2026-11-03T11-31-08.668064Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/database_exploration.json.gz",
+      "final_artifact_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/database_exploration.json.gz",
+      "batch_id": "2026-11-03T11-31-08.668064Z_run-all",
+      "headline": {
+        "cumulative_gain": 10.7997,
+        "total_reward": 15.5331,
+        "mean_latency_seconds": 11.060673,
+        "total_cost_usd": 2.404245
+      },
+      "raw_summary_path": "results/database_exploration/viewer_artifact_2026-11-03T11-31-08.668064Z_run-all_20261103_134333.json.gz"
+    },
+    {
+      "task": "codebase_adaptation",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-11-03T11:31:08.671068+00:00",
+      "finished_at": "2026-11-03T12:12:48.529345+00:00",
+      "exit_code": 0,
+      "duration_seconds": 2499.86,
+      "log_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs/codebase_adaptation.log",
+      "live_manifest_path": "results/codebase_adaptation/live/2026-11-03T11-31-08.668064Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/codebase_adaptation.json.gz",
+      "final_artifact_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/codebase_adaptation.json.gz",
+      "batch_id": "2026-11-03T11-31-08.668064Z_run-all",
+      "headline": {
+        "cumulative_gain": 3.05,
+        "total_reward": 12.625,
+        "mean_latency_seconds": 69.20247,
+        "total_cost_usd": 6.5126636
+      },
+      "raw_summary_path": "results/codebase_adaptation/viewer_artifact_2026-11-03T11-31-08.668064Z_run-all_20261103_141247.json.gz"
+    },
+    {
+      "task": "sales_prediction",
+      "schedule": "default",
+      "status": "ok",
+      "started_at": "2026-11-03T11:43:35.061440+00:00",
+      "finished_at": "2026-11-03T12:09:40.671021+00:00",
+      "exit_code": 0,
+      "duration_seconds": 1565.61,
+      "log_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/logs/sales_prediction.log",
+      "live_manifest_path": "results/sales_prediction/live/2026-11-03T11-31-08.668064Z_run-all/manifest.json",
+      "summary_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/sales_prediction.json.gz",
+      "final_artifact_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/tasks/sales_prediction.json.gz",
+      "batch_id": "2026-11-03T11-31-08.668064Z_run-all",
+      "headline": {
+        "cumulative_gain": 5.1377,
+        "total_reward": 10.2173,
+        "mean_latency_seconds": 91.212201,
+        "total_cost_usd": 3.1250722
+      },
+      "raw_summary_path": "results/sales_prediction/viewer_artifact_2026-11-03T11-31-08.668064Z_run-all_20261103_140939.json.gz"
+    }
+  ],
+  "task_artifacts": null,
+  "task_artifacts_path": "final_results/runs/logbook-icl-claude-sonnet-4-6/task_artifacts.json.gz",
+  "batches": [
+    {
+      "batch_id": "2026-11-02T16-49-10.698452Z_run-all",
+      "run_group_id": "2026-11-02T16-49-10.698452Z_run-all",
+      "mode": "initial",
+      "tasks_run": [
+        "exploitable_poker",
+        "blind_spectrum_monitoring",
+        "cohort_studies"
+      ],
+      "tasks_passed": [
+        "blind_spectrum_monitoring",
+        "cohort_studies"
+      ],
+      "tasks_failed": [
+        "exploitable_poker"
+      ],
+      "tasks_skipped": [],
+      "started_at": "2026-11-02T16:49:10.698500+00:00",
+      "finished_at": "2026-11-02T17:21:54.654823+00:00"
+    },
+    {
+      "batch_id": "2026-11-02T17-22-13.926219Z_run-all",
+      "run_group_id": "2026-11-02T17-22-13.926219Z_run-all",
+      "mode": "missing_only",
+      "tasks_run": [
+        "exploitable_poker"
+      ],
+      "tasks_passed": [
+        "exploitable_poker"
+      ],
+      "tasks_failed": [],
+      "tasks_skipped": [],
+      "started_at": "2026-11-02T17:22:13.926257+00:00",
+      "finished_at": "2026-11-02T19:29:48.511035+00:00"
+    },
+    {
+      "batch_id": "2026-11-03T11-31-08.668064Z_run-all",
+      "run_group_id": "2026-11-03T11-31-08.668064Z_run-all",
+      "mode": "missing_only",
+      "tasks_run": [
+        "database_exploration",
+        "codebase_adaptation",
+        "sales_prediction"
+      ],
+      "tasks_passed": [
+        "database_exploration",
+        "codebase_adaptation",
+        "sales_prediction"
+      ],
+      "tasks_failed": [],
+      "tasks_skipped": [],
+      "started_at": "2026-11-03T11:31:08.668096+00:00",
+      "finished_at": "2026-11-03T12:12:48.777893+00:00"
+    }
+  ]
+}
