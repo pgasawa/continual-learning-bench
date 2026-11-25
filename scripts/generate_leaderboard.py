@@ -42,6 +42,7 @@ MODEL_DISPLAY = {
     "claude-sonnet-4-6": "Claude Sonnet 4.6",
     "claude-opus-4-7": "Claude Opus 4.7",
     "claude-code-sonnet-4.6": "Claude Code Sonnet 4.6",
+    "inkling-2-small-causal-reflection": "Inkling 2 Small Causal Reflection",
 }
 
 
